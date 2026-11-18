@@ -1,5 +1,8 @@
+import { useNavigate } from "react-router";
+import { navTo } from "@/utils/nav";
 import "@/styles/Frame21992.css";
 const Frame21992 = () => {
+    const navigate = useNavigate();
     return (
         <div className="scroll-container">
             <div
@@ -41,6 +44,7 @@ const Frame21992 = () => {
                                                     <p
                                                         id="2_2012"
                                                         className="Pixso-paragraph-2_2012 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                        {...navTo(navigate, "/frame2688")}
                                                     >
                                                         {"HyperCortex"}
                                                     </p>

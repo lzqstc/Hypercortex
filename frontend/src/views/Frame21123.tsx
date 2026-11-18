@@ -1,10 +1,177 @@
-import { useNavigate } from "react-router";
-import { navTo } from "@/utils/nav";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { api, type ChatSource } from "@/services/api";
+import { useFeedback } from "@/components/Feedback";
+import { useFilePicker } from "@/hooks/useFilePicker";
+import { navTo, pressable } from "@/utils/nav";
+import { getCurrentProject } from "@/utils/project";
 import "@/styles/Frame21123.css";
+import "@/styles/qa-layout.css";
+
+type ChatMessage = {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    sources: ChatSource[];
+    question?: string;
+    lowConfidence?: boolean;
+    pending?: boolean;
+    error?: boolean;
+};
+
 const Frame21123 = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { notify, track } = useFeedback();
+    const [question, setQuestion] = useState("");
+    const [hybrid, setHybrid] = useState(true);
+    const [citations, setCitations] = useState(true);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [streaming, setStreaming] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const inputRef = useRef<HTMLParagraphElement>(null);
+    const streamRef = useRef<HTMLDivElement>(null);
+    const routeState = location.state as { projectId?: string } | null;
+    const projectId = routeState?.projectId ?? getCurrentProject().id;
+
+    useEffect(() => {
+        const node = streamRef.current;
+        if (!node) return;
+        const rows = node.querySelectorAll<HTMLElement>('[data-role="user"]');
+        const latest = rows[rows.length - 1];
+        if (!latest) {
+            node.scrollTop = node.scrollHeight;
+            return;
+        }
+        const delta = latest.getBoundingClientRect().top - node.getBoundingClientRect().top;
+        node.scrollTop = Math.max(0, node.scrollTop + delta - 8);
+    }, [messages]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setMessages([]);
+        void api
+            .bootstrap()
+            .then((data) => {
+                if (cancelled) return;
+                const restored = (data.conversations || [])
+                    .filter((item) => (item.projectId || "default") === projectId)
+                    .slice(0, 12)
+                    .reverse()
+                    .flatMap((item) => [
+                        {
+                            id: `u_${item.id}`,
+                            role: "user" as const,
+                            content: item.question,
+                            sources: [],
+                        },
+                        {
+                            id: `a_${item.id}`,
+                            role: "assistant" as const,
+                            content: item.answer,
+                            sources: item.sources || [],
+                            question: item.question,
+                        },
+                    ]);
+                if (!restored.length) return;
+                setMessages((current) => (current.length ? current : restored));
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [projectId]);
+
+    const handleFiles = async (files: File[]) => {
+        if (!files.length) return;
+        await track(() => api.uploads.create(files, projectId), {
+            loading: `正在上传 ${files.length} 个附件...`,
+            success: `${files.length} 个附件已加入知识库`,
+        });
+    };
+
+    const { open: openFilePicker, input: fileInput } = useFilePicker(handleFiles);
+
+    const handleSend = async () => {
+        const value = question.trim();
+        if (!value) {
+            notify("请先输入问题", "error");
+            return;
+        }
+        if (streaming) return;
+        const stamp = Date.now();
+        const userId = `u_${stamp}`;
+        const botId = `a_${stamp}`;
+        const history = messages
+            .filter((message) => !message.pending && !message.error && message.content.trim())
+            .slice(-8)
+            .map((message) => ({ role: message.role, content: message.content }));
+        setQuestion("");
+        if (inputRef.current) inputRef.current.textContent = "";
+        setStreaming(true);
+        setMessages((current) => [
+            ...current,
+            { id: userId, role: "user", content: value, sources: [] },
+            { id: botId, role: "assistant", content: "", sources: [], question: value, pending: true },
+        ]);
+        const result = await track(
+            () =>
+                api.chat.ask(value, {
+                    projectId,
+                    topK: 6,
+                    citations,
+                    history,
+                }),
+            {
+                loading: "正在检索知识库并生成回答...",
+                success: "回答已生成",
+            },
+        );
+        setStreaming(false);
+        setMessages((current) =>
+            current.map((message) => {
+                if (message.id !== botId) return message;
+                if (!result) {
+                    return {
+                        ...message,
+                        pending: false,
+                        error: true,
+                        content: "抱歉，这次没能获取到回答，请稍后再试。",
+                    };
+                }
+                return {
+                    ...message,
+                    pending: false,
+                    content: result.item.answer,
+                    sources: result.item.sources || [],
+                    lowConfidence: Boolean(result.item.lowConfidence),
+                };
+            }),
+        );
+    };
+
+    const startNewConversation = () => {
+        setQuestion("");
+        setMessages([]);
+        setStreaming(false);
+        if (inputRef.current) inputRef.current.textContent = "";
+        notify("已新建对话");
+    };
+
     return (
         <div className="scroll-container">
+            {fileInput}
+            <button
+                type="button"
+                className="hc-sidebar-toggle"
+                style={{ left: sidebarOpen ? 252 : 8 }}
+                title={sidebarOpen ? "收起侧栏" : "展开侧栏"}
+                aria-label={sidebarOpen ? "收起侧栏" : "展开侧栏"}
+                aria-expanded={sidebarOpen}
+                onClick={() => setSidebarOpen((open) => !open)}
+            >
+                {sidebarOpen ? "‹" : "›"}
+            </button>
             <div
                 id="2_1123"
                 className="Pixso-frame-2_1123 pixso-relative-no-shrink pixso-flex"
@@ -12,7 +179,9 @@ const Frame21123 = () => {
                 <div className="frame-content-2_1123 pixso-relative-flex">
                     <div
                         id="2_1124"
-                        className="stroke-wrapper-2_1124 pixso-relative-no-shrink pixso-flex"
+                        className={`stroke-wrapper-2_1124 pixso-relative-no-shrink pixso-flex${
+                            sidebarOpen ? "" : " hc-sidebar-collapsed"
+                        }`}
                     >
                         <div className="Pixso-frame-2_1124 pixso-relative-no-shrink pixso-flex"></div>
                         <div className="stroke-2_1124"></div>
@@ -42,6 +211,7 @@ const Frame21123 = () => {
                                                 <p
                                                     id="2_1142"
                                                     className="Pixso-paragraph-2_1142 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"HyperCortex"}
                                                 </p>
@@ -589,7 +759,7 @@ const Frame21123 = () => {
                                                 <p
                                                     id="2_1254"
                                                     className="Pixso-paragraph-2_1254 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                    {...navTo(navigate, "/frame21608")}
+                                                    {...navTo(navigate, "/frame21123")}
                                                 >
                                                     {"知识库Q&A"}
                                                 </p>
@@ -614,7 +784,7 @@ const Frame21123 = () => {
                                                 <p
                                                     id="2_1271"
                                                     className="Pixso-paragraph-2_1271 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                    {...navTo(navigate, "/frame21123")}
+                                                    {...navTo(navigate, "/frame21608")}
                                                 >
                                                     {"深度思考与研究"}
                                                 </p>
@@ -665,6 +835,7 @@ const Frame21123 = () => {
                                                             <div
                                                                 id="2_1279"
                                                                 className="Pixso-frame-2_1279 pixso-relative-no-shrink pixso-flex"
+                                                                {...pressable(startNewConversation)}
                                                             >
                                                                 <div className="frame-content-2_1279 pixso-relative-flex">
                                                                     <div
@@ -692,11 +863,13 @@ const Frame21123 = () => {
                                                                     ></div>
                                                                     <p
                                                                         id="2_1288"
-                                                                        className="Pixso-paragraph-2_1288 pixso-position-relative pixso-h-auto"
+                                                                        className="Pixso-paragraph-2_1288 pixso-position-relative pixso-h-auto hc-editable"
+                                                                        data-placeholder="搜索历史问答"
+                                                                        contentEditable
+                                                                        suppressContentEditableWarning
+                                                                        onFocus={() => notify("可输入关键词搜索历史问答")}
                                                                     >
-                                                                        {
-                                                                            "搜索历史问答"
-                                                                        }
+                                                                        {""}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -1864,6 +2037,174 @@ const Frame21123 = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {messages.length > 0 && (
+                                                            <div className="hc-chat" ref={streamRef}>
+                                                                {messages.map((message) =>
+                                                                    message.role === "user" ? (
+                                                                        <div
+                                                                            className="hc-chat__row hc-chat__row--user"
+                                                                            key={message.id}
+                                                                            data-role="user"
+                                                                        >
+                                                                            <div className="hc-chat__bubble hc-chat__bubble--user">
+                                                                                {message.content}
+                                                                            </div>
+                                                                            <span
+                                                                                className="hc-chat__avatar hc-chat__avatar--user"
+                                                                                aria-hidden="true"
+                                                                            >
+                                                                                <svg viewBox="0 0 24 24" fill="none">
+                                                                                    <circle
+                                                                                        cx="12"
+                                                                                        cy="8.5"
+                                                                                        r="3.6"
+                                                                                        stroke="currentColor"
+                                                                                        strokeWidth="1.6"
+                                                                                    />
+                                                                                    <path
+                                                                                        d="M4.8 20c1.3-3.9 4-5.8 7.2-5.8S17.9 16.1 19.2 20"
+                                                                                        stroke="currentColor"
+                                                                                        strokeWidth="1.6"
+                                                                                        strokeLinecap="round"
+                                                                                    />
+                                                                                </svg>
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div
+                                                                            className="hc-chat__row hc-chat__row--bot"
+                                                                            key={message.id}
+                                                                        >
+                                                                            <span
+                                                                                className="hc-chat__avatar"
+                                                                                aria-hidden="true"
+                                                                            >
+                                                                                <svg viewBox="0 0 24 24" fill="none">
+                                                                                    <rect
+                                                                                        x="4"
+                                                                                        y="8"
+                                                                                        width="16"
+                                                                                        height="11"
+                                                                                        rx="4"
+                                                                                        stroke="currentColor"
+                                                                                        strokeWidth="1.6"
+                                                                                    />
+                                                                                    <path
+                                                                                        d="M12 4v4"
+                                                                                        stroke="currentColor"
+                                                                                        strokeWidth="1.6"
+                                                                                        strokeLinecap="round"
+                                                                                    />
+                                                                                    <circle cx="12" cy="3" r="1.2" fill="currentColor" />
+                                                                                    <circle cx="9" cy="13" r="1.2" fill="currentColor" />
+                                                                                    <circle cx="15" cy="13" r="1.2" fill="currentColor" />
+                                                                                    <path
+                                                                                        d="M9.5 16.5h5"
+                                                                                        stroke="currentColor"
+                                                                                        strokeWidth="1.6"
+                                                                                        strokeLinecap="round"
+                                                                                    />
+                                                                                </svg>
+                                                                            </span>
+                                                                            <div className="hc-chat__bubble hc-chat__bubble--bot">
+                                                                                <div className="hc-chat__head">
+                                                                                    <span className="hc-chat__name">
+                                                                                        HyperCortex 机器人
+                                                                                    </span>
+                                                                                    <span
+                                                                                        className={`hc-chat__meta${message.lowConfidence ? " is-low" : ""}${message.error ? " is-error" : ""}`}
+                                                                                    >
+                                                                                        {message.pending
+                                                                                            ? "正在检索知识库..."
+                                                                                            : message.error
+                                                                                              ? "回答失败"
+                                                                                              : message.lowConfidence
+                                                                                                ? "低置信度"
+                                                                                                : `${message.sources.length} 个引用`}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {message.pending ? (
+                                                                                    <div className="hc-chat__skeleton">
+                                                                                        <span />
+                                                                                        <span />
+                                                                                        <span />
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <p
+                                                                                        className={`hc-chat__text${message.error ? " is-error" : ""}`}
+                                                                                    >
+                                                                                        {message.content}
+                                                                                    </p>
+                                                                                )}
+                                                                {!message.pending && message.sources.length > 0 && (
+                                                                    <div className="hc-rag-sources">
+                                                                        {message.sources.map((source, index) => (
+                                                                            <div
+                                                                                className="hc-rag-source"
+                                                                                key={source.id || `${source.title}-${index}`}
+                                                                            >
+                                                                                <div className="hc-rag-source__head">
+                                                                                    <span className="hc-rag-source__index">
+                                                                                        [{index + 1}]
+                                                                                    </span>
+                                                                                    <span className="hc-rag-source__title">
+                                                                                        {source.title || source.filename}
+                                                                                    </span>
+                                                                                    {source.page ? (
+                                                                                        <span className="hc-rag-source__page">
+                                                                                            第 {source.page} 页
+                                                                                        </span>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                                {source.section && (
+                                                                                    <p className="hc-rag-source__section">
+                                                                                        {source.section}
+                                                                                    </p>
+                                                                                )}
+                                                                                <p className="hc-rag-source__snippet">
+                                                                                    {source.snippet || source.content}
+                                                                                </p>
+                                                                                <div className="hc-rag-source__meta">
+                                                                                    <span>
+                                                                                        相关度{" "}
+                                                                                        {Math.round(
+                                                                                            (source.score || 0) * 100,
+                                                                                        )}
+                                                                                        %
+                                                                                    </span>
+                                                                                    {source.rerankScore ? (
+                                                                                        <span>
+                                                                                            重排{" "}
+                                                                                            {Math.round(
+                                                                                                source.rerankScore * 100,
+                                                                                            )}
+                                                                                            %
+                                                                                        </span>
+                                                                                    ) : null}
+                                                                                    {source.sourceUrl || source.documentId ? (
+                                                                                        <a
+                                                                                            className="hc-rag-source__link"
+                                                                                            href={
+                                                                                                source.sourceUrl ||
+                                                                                                `/api/documents/${source.documentId}/file`
+                                                                                            }
+                                                                                            target="_blank"
+                                                                                            rel="noreferrer"
+                                                                                        >
+                                                                                            查看原文
+                                                                                        </a>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        )}
                                                         <div
                                                             id="2_1520"
                                                             className="stroke-wrapper-2_1520 pixso-relative-no-shrink pixso-flex"
@@ -1877,12 +2218,23 @@ const Frame21123 = () => {
                                                                         <div className="Pixso-frame-2_1521 pixso-relative-no-shrink pixso-flex">
                                                                             <div className="frame-content-2_1521 pixso-relative-flex">
                                                                                 <p
+                                                                                    ref={inputRef}
                                                                                     id="2_1522"
-                                                                                    className="Pixso-paragraph-2_1522 pixso-relative-no-shrink pixso-h-auto"
-                                                                                >
-                                                                                    {
-                                                                                        "继续追问，或粘贴文本让 HyperCortex 基于知识库解读…"
+                                                                                    className="Pixso-paragraph-2_1522 pixso-relative-no-shrink pixso-h-auto hc-editable"
+                                                                                    data-placeholder="继续追问，或粘贴文本让 HyperCortex 基于知识库解读…"
+                                                                                    contentEditable
+                                                                                    suppressContentEditableWarning
+                                                                                    onInput={(event) =>
+                                                                                        setQuestion(event.currentTarget.textContent ?? "")
                                                                                     }
+                                                                                    onKeyDown={(event) => {
+                                                                                        if (event.key === "Enter" && !event.shiftKey) {
+                                                                                            event.preventDefault();
+                                                                                            void handleSend();
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    {""}
                                                                                 </p>
                                                                                 <div
                                                                                     id="2_1523"
@@ -1896,7 +2248,8 @@ const Frame21123 = () => {
                                                                                             <div className="frame-content-2_1524 pixso-relative-flex">
                                                                                                 <div
                                                                                                     id="2_1525"
-                                                                                                    className="Pixso-frame-2_1525 pixso-relative-no-shrink pixso-flex"
+                                                                                                    className="Pixso-frame-2_1525 pixso-relative-no-shrink pixso-flex hc-pill-active"
+                                                                                                    {...pressable(() => notify("知识库已锁定为：产品知识中枢"))}
                                                                                                 >
                                                                                                     <div className="frame-content-2_1525 pixso-relative-flex">
                                                                                                         <div
@@ -1919,7 +2272,11 @@ const Frame21123 = () => {
                                                                                                 </div>
                                                                                                 <div
                                                                                                     id="2_1533"
-                                                                                                    className="Pixso-frame-2_1533 pixso-relative-no-shrink pixso-flex"
+                                                                                                    className={`Pixso-frame-2_1533 pixso-relative-no-shrink pixso-flex${hybrid ? " hc-pill-active" : ""}`}
+                                                                                                    {...pressable(() => {
+                                                                                                        setHybrid((value) => !value);
+                                                                                                        notify(`混合检索已${hybrid ? "关闭" : "开启"}`);
+                                                                                                    })}
                                                                                                 >
                                                                                                     <div className="frame-content-2_1533 pixso-relative-flex">
                                                                                                         <div
@@ -1938,7 +2295,11 @@ const Frame21123 = () => {
                                                                                                 </div>
                                                                                                 <div
                                                                                                     id="2_1539"
-                                                                                                    className="Pixso-frame-2_1539 pixso-relative-no-shrink pixso-flex"
+                                                                                                    className={`Pixso-frame-2_1539 pixso-relative-no-shrink pixso-flex${citations ? " hc-pill-active" : ""}`}
+                                                                                                    {...pressable(() => {
+                                                                                                        setCitations((value) => !value);
+                                                                                                        notify(`引用来源已${citations ? "隐藏" : "显示"}`);
+                                                                                                    })}
                                                                                                 >
                                                                                                     <div className="frame-content-2_1539 pixso-relative-flex">
                                                                                                         <div
@@ -1965,10 +2326,12 @@ const Frame21123 = () => {
                                                                                                 <div
                                                                                                     id="2_1546"
                                                                                                     className="Pixso-vector-2_1546 pixso-relative-no-shrink"
+                                                                                                    {...pressable(openFilePicker)}
                                                                                                 ></div>
                                                                                                 <div
                                                                                                     id="2_1548"
                                                                                                     className="Pixso-frame-2_1548 pixso-relative-no-shrink pixso-flex"
+                                                                                                    {...pressable(() => void handleSend())}
                                                                                                 >
                                                                                                     <div className="frame-content-2_1548 pixso-relative-flex">
                                                                                                         <div

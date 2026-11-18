@@ -2553,3 +2553,30 @@
 .Pixso-vector-2_681 {
   background-image: url(@/assets/images/box.svg);
 }
+
+/* Let the exported fixed-height text blocks fit their full line boxes. */
+.Pixso-frame-2_469 {
+  height: auto;
+  min-height: 80px;
+}
+
+.Pixso-frame-2_594 {
+  height: auto;
+  min-height: 13px;
+  overflow: visible;
+}
+
+.Pixso-paragraph-2_550,
+.Pixso-paragraph-2_551,
+.Pixso-paragraph-2_556,
+.Pixso-paragraph-2_557,
+.Pixso-paragraph-2_562,
+.Pixso-paragraph-2_563,
+.Pixso-paragraph-2_666,
+.Pixso-paragraph-2_667,
+.Pixso-paragraph-2_677,
+.Pixso-paragraph-2_678,
+.Pixso-paragraph-2_686,
+.Pixso-paragraph-2_687 {
+  line-height: 1.1;
+}

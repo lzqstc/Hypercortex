@@ -1,0 +1,172 @@
+/* 页面单窗口布局：整页不滚动，问答区向下伸展，只有对话内部滚动。
+   用 html body 提升特异性，确保覆盖 Frame21123.css 中的设计稿尺寸。 */
+
+html body .scroll-container {
+  height: 100%;
+  overflow: hidden;
+}
+
+html body .Pixso-frame-2_1123 {
+  height: 100%;
+  min-height: 0;
+}
+
+html body .frame-content-2_1123 {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 左侧栏：固定宽度，不参与拉伸，可折叠 */
+html body .stroke-wrapper-2_1124 {
+  flex: 0 0 264px;
+  width: 264px;
+  height: 100%;
+  min-height: 0;
+  transition: width 0.2s ease, flex-basis 0.2s ease;
+}
+
+html body .Pixso-frame-2_1124 {
+  flex: 0 0 264px;
+  width: 264px;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  transition: width 0.2s ease, flex-basis 0.2s ease;
+}
+
+html body .frame-content-2_1124 {
+  min-height: 0;
+}
+
+/* 右侧主区：占满侧栏剩余宽度 */
+html body .Pixso-frame-2_1216 {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+html body .frame-content-2_1216 {
+  min-height: 0;
+}
+
+html body .Pixso-frame-2_1217 {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 42px;
+}
+
+html body .stroke-wrapper-2_1276 {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+html body .Pixso-frame-2_1276 {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+html body .frame-content-2_1276 {
+  min-height: 0;
+}
+
+html body .Pixso-frame-2_1277 {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+html body .Pixso-frame-2_1339 {
+  position: relative;
+  height: auto;
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+}
+
+html body .frame-content-2_1339 {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  justify-content: flex-end;
+}
+
+/* 输入卡：去掉蓝色描边与蓝色外发光 */
+html body .Pixso-frame-2_1521 {
+  box-shadow: 0 0 0 1px rgba(228, 233, 242, 1);
+}
+
+html body .stroke-2_1521 {
+  border-color: rgba(228, 233, 242, 1);
+}
+
+html body .hc-editable:focus,
+html body .hc-editable:focus-visible {
+  outline: none;
+}
+
+/* 对话区：禁止横向溢出，保证气泡完整可见 */
+html body .hc-chat {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html body .hc-chat__row {
+  max-width: 100%;
+}
+
+html body .hc-chat__bubble--user {
+  background: #4b4ef0 !important;
+  color: #ffffff !important;
+}
+
+html body .hc-chat__bubble--bot {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+}
+
+/* 侧栏折叠 */
+html body .hc-sidebar-collapsed {
+  flex-basis: 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html body .hc-sidebar-collapsed .frame-content-2_1124 {
+  visibility: hidden;
+}
+
+.hc-sidebar-toggle {
+  position: fixed;
+  top: 78px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #475569;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: left 0.2s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hc-sidebar-toggle:hover {
+  border-color: rgba(75, 78, 240, 0.45);
+  color: #4b4ef0;
+}

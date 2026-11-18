@@ -1,8 +1,81 @@
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { navTo } from "@/utils/nav";
+import { api } from "@/services/api";
+import { useFeedback } from "@/components/Feedback";
+import { navTo, pressable } from "@/utils/nav";
+import { setCurrentProject } from "@/utils/project";
 import "@/styles/Frame2319.css";
 const Frame2319 = () => {
     const navigate = useNavigate();
+    const { notify, track } = useFeedback();
+    const [projectName, setProjectName] = useState("");
+    const [template, setTemplate] = useState("产品知识库");
+    const [team, setTeam] = useState("产品与体验中心");
+    const [visibility, setVisibility] = useState("团队可见 · 34 人");
+    const [autoSync, setAutoSync] = useState(true);
+    const [deepSearch, setDeepSearch] = useState(true);
+    const [citations, setCitations] = useState(false);
+
+    const selectTemplate = (value: string) => {
+        setTemplate(value);
+        notify(`已选择模板：${value}`);
+    };
+
+    const cycleTeam = () => {
+        const teams = ["产品与体验中心", "法务合规中心", "供应链运营中心"];
+        const next = teams[(teams.indexOf(team) + 1) % teams.length];
+        setTeam(next);
+        notify(`所属团队已切换为：${next}`);
+    };
+
+    const cycleVisibility = () => {
+        const options = ["团队可见 · 34 人", "仅自己可见", "获得链接的人可见"];
+        const next = options[(options.indexOf(visibility) + 1) % options.length];
+        setVisibility(next);
+        notify(`可见范围已切换为：${next}`);
+    };
+
+    const updateSetting = async (key: "autoSync" | "deepSearch" | "citations") => {
+        const next = {
+            autoSync: key === "autoSync" ? !autoSync : autoSync,
+            deepSearch: key === "deepSearch" ? !deepSearch : deepSearch,
+            citations: key === "citations" ? !citations : citations,
+        };
+        if (key === "autoSync") setAutoSync(next.autoSync);
+        if (key === "deepSearch") setDeepSearch(next.deepSearch);
+        if (key === "citations") setCitations(next.citations);
+        notify(`${key === "autoSync" ? "自动同步" : key === "deepSearch" ? "深度思考" : "引用来源"}已${next[key] ? "开启" : "关闭"}`);
+        void track(() => api.settings.update({ [key]: next[key] as boolean }), {
+            error: "设置同步失败",
+        });
+    };
+
+    const handleCreate = async () => {
+        if (!projectName.trim()) {
+            notify("请先输入项目名称", "error");
+            return;
+        }
+        const result = await track(
+            () =>
+                api.projects.create({
+                    name: projectName.trim(),
+                    template,
+                    team,
+                    visibility,
+                }),
+            {
+                loading: "正在创建项目...",
+                success: "项目创建成功，正在进入工作区",
+            },
+        );
+        if (result) {
+            setCurrentProject({ id: result.item.id, name: result.item.name });
+            navigate("/frame2688", {
+                state: { projectId: result.item.id, projectName: result.item.name },
+            });
+        }
+    };
+
     return (
         <div className="scroll-container">
             <div
@@ -42,6 +115,7 @@ const Frame2319 = () => {
                                                 <p
                                                     id="2_338"
                                                     className="Pixso-paragraph-2_338 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"HyperCortex"}
                                                 </p>
@@ -482,6 +556,7 @@ const Frame2319 = () => {
                                             <div
                                                 id="2_420"
                                                 className="stroke-wrapper-2_420 pixso-relative-no-shrink pixso-flex"
+                                                {...pressable(() => notify("全局搜索面板（演示）"))}
                                             >
                                                 <div className="Pixso-frame-2_420 pixso-relative-no-shrink pixso-flex">
                                                     <div className="frame-content-2_420 pixso-relative-flex">
@@ -510,6 +585,15 @@ const Frame2319 = () => {
                                             <div
                                                 id="2_426"
                                                 className="stroke-wrapper-2_426 pixso-relative-no-shrink pixso-flex"
+                                                {...pressable(async () => {
+                                                    const data = await track(() => api.notifications.list(), {
+                                                        error: "通知加载失败",
+                                                    });
+                                                    if (data) {
+                                                        const unread = data.items.filter((item) => !item.read).length;
+                                                        notify(unread ? `有 ${unread} 条未读通知` : "暂无新通知", "success");
+                                                    }
+                                                })}
                                             >
                                                 <div className="Pixso-frame-2_426 pixso-relative-no-shrink pixso-flex">
                                                     <div className="frame-content-2_426 pixso-relative-flex">
@@ -524,6 +608,7 @@ const Frame2319 = () => {
                                             <div
                                                 id="2_430"
                                                 className="stroke-wrapper-2_430 pixso-relative-no-shrink pixso-flex"
+                                                {...pressable(() => notify("帮助中心（演示）"))}
                                             >
                                                 <div className="Pixso-frame-2_430 pixso-relative-no-shrink pixso-flex">
                                                     <div className="frame-content-2_430 pixso-relative-flex">
@@ -611,6 +696,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_450"
                                                             className="Pixso-frame-2_450 pixso-relative-flex"
+                                                            {...pressable(() => notify("当前步骤：选择模板"))}
                                                         >
                                                             <div className="frame-content-2_450 pixso-relative-flex">
                                                                 <div
@@ -646,6 +732,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_455"
                                                             className="Pixso-frame-2_455 pixso-relative-flex"
+                                                            {...pressable(() => notify("当前步骤：基本信息"))}
                                                         >
                                                             <div className="frame-content-2_455 pixso-relative-flex">
                                                                 <div
@@ -681,6 +768,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_460"
                                                             className="Pixso-frame-2_460 pixso-relative-flex"
+                                                            {...pressable(() => notify("当前步骤：上传资料"))}
                                                         >
                                                             <div className="frame-content-2_460 pixso-relative-flex">
                                                                 <div
@@ -716,6 +804,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_465"
                                                             className="Pixso-frame-2_465 pixso-relative-no-shrink pixso-flex"
+                                                            {...pressable(() => notify("当前步骤：完成"))}
                                                         >
                                                             <div className="frame-content-2_465 pixso-relative-flex">
                                                                 <div
@@ -739,7 +828,6 @@ const Frame2319 = () => {
                                                                 <p
                                                                     id="2_468"
                                                                     className="Pixso-paragraph-2_468 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                                    {...navTo(navigate, "/frame2688")}
                                                                 >
                                                                     {"完成"}
                                                                 </p>
@@ -783,19 +871,21 @@ const Frame2319 = () => {
                                                                     ></div>
                                                                     <p
                                                                         id="2_479"
-                                                                        className="Pixso-paragraph-2_479 pixso-position-relative pixso-h-auto"
-                                                                    >
-                                                                        {
-                                                                            "2025 Q4 产品知识中枢"
+                                                                        className="Pixso-paragraph-2_479 pixso-position-relative pixso-h-auto hc-editable"
+                                                                        data-placeholder="请输入项目名称"
+                                                                        contentEditable
+                                                                        suppressContentEditableWarning
+                                                                        onInput={(event) =>
+                                                                            setProjectName(event.currentTarget.textContent ?? "")
                                                                         }
+                                                                    >
+                                                                        {""}
                                                                     </p>
                                                                     <p
                                                                         id="2_480"
                                                                         className="Pixso-paragraph-2_480 pixso-relative-auto-size pixso-flex-shrink-0"
                                                                     >
-                                                                        {
-                                                                            "12/40"
-                                                                        }
+                                                                        {`${projectName.length}/40`}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -855,7 +945,8 @@ const Frame2319 = () => {
                                                             <div className="frame-content-2_491 pixso-relative-flex">
                                                                 <div
                                                                     id="2_492"
-                                                                    className="stroke-wrapper-2_492 pixso-relative-flex"
+                                                                    className={`stroke-wrapper-2_492 pixso-relative-flex${template === "产品知识库" ? " hc-selected" : ""}`}
+                                                                    {...pressable(() => selectTemplate("产品知识库"))}
                                                                 >
                                                                     <div className="Pixso-frame-2_492 pixso-relative-flex">
                                                                         <div className="frame-content-2_492 pixso-relative-flex">
@@ -903,7 +994,8 @@ const Frame2319 = () => {
                                                                 </div>
                                                                 <div
                                                                     id="2_505"
-                                                                    className="stroke-wrapper-2_505 pixso-relative-flex"
+                                                                    className={`stroke-wrapper-2_505 pixso-relative-flex${template === "研究报告库" ? " hc-selected" : ""}`}
+                                                                    {...pressable(() => selectTemplate("研究报告库"))}
                                                                 >
                                                                     <div className="Pixso-frame-2_505 pixso-relative-flex">
                                                                         <div className="frame-content-2_505 pixso-relative-flex">
@@ -954,7 +1046,8 @@ const Frame2319 = () => {
                                                                 </div>
                                                                 <div
                                                                     id="2_517"
-                                                                    className="stroke-wrapper-2_517 pixso-relative-flex"
+                                                                    className={`stroke-wrapper-2_517 pixso-relative-flex${template === "合规制度库" ? " hc-selected" : ""}`}
+                                                                    {...pressable(() => selectTemplate("合规制度库"))}
                                                                 >
                                                                     <div className="Pixso-frame-2_517 pixso-relative-flex">
                                                                         <div className="frame-content-2_517 pixso-relative-flex">
@@ -1027,7 +1120,10 @@ const Frame2319 = () => {
                                                                     id="2_529"
                                                                     className="stroke-wrapper-2_529 pixso-relative-no-shrink pixso-flex"
                                                                 >
-                                                                    <div className="Pixso-frame-2_529 pixso-relative-no-shrink pixso-flex">
+                                                                    <div
+                                                                        className="Pixso-frame-2_529 pixso-relative-no-shrink pixso-flex"
+                                                                        {...pressable(cycleTeam)}
+                                                                    >
                                                                         <div className="frame-content-2_529 pixso-relative-flex">
                                                                             <div
                                                                                 id="2_530"
@@ -1037,9 +1133,7 @@ const Frame2319 = () => {
                                                                                 id="2_535"
                                                                                 className="Pixso-paragraph-2_535 pixso-position-relative pixso-h-auto"
                                                                             >
-                                                                                {
-                                                                                    "产品与体验中心"
-                                                                                }
+                                                                                {team}
                                                                             </p>
                                                                             <div
                                                                                 id="2_536"
@@ -1065,6 +1159,7 @@ const Frame2319 = () => {
                                                                 <div
                                                                     id="2_540"
                                                                     className="stroke-wrapper-2_540 pixso-relative-no-shrink pixso-flex"
+                                                                    {...pressable(cycleVisibility)}
                                                                 >
                                                                     <div className="Pixso-frame-2_540 pixso-relative-no-shrink pixso-flex">
                                                                         <div className="frame-content-2_540 pixso-relative-flex">
@@ -1088,9 +1183,7 @@ const Frame2319 = () => {
                                                                                 id="2_544"
                                                                                 className="Pixso-paragraph-2_544 pixso-position-relative pixso-h-auto"
                                                                             >
-                                                                                {
-                                                                                    "团队可见 · 34 人"
-                                                                                }
+                                                                                {visibility}
                                                                             </p>
                                                                             <div
                                                                                 id="2_545"
@@ -1112,6 +1205,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_548"
                                                             className="stroke-wrapper-2_548 pixso-relative-no-shrink pixso-flex"
+                                                            {...pressable(() => void updateSetting("autoSync"))}
                                                         >
                                                             <div className="Pixso-frame-2_548 pixso-relative-no-shrink pixso-flex">
                                                                 <div className="frame-content-2_548 pixso-relative-flex">
@@ -1140,7 +1234,7 @@ const Frame2319 = () => {
                                                                     </div>
                                                                     <div
                                                                         id="2_552"
-                                                                        className="vector-wrapper-2_552 pixso-relative-no-shrink pixso-flex"
+                                                                        className={`vector-wrapper-2_552 pixso-relative-no-shrink pixso-flex${autoSync ? "" : " hc-toggle-off"}`}
                                                                     >
                                                                         <div
                                                                             id="2_552"
@@ -1154,6 +1248,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_554"
                                                             className="stroke-wrapper-2_554 pixso-relative-no-shrink pixso-flex"
+                                                            {...pressable(() => void updateSetting("deepSearch"))}
                                                         >
                                                             <div className="Pixso-frame-2_554 pixso-relative-no-shrink pixso-flex">
                                                                 <div className="frame-content-2_554 pixso-relative-flex">
@@ -1182,7 +1277,7 @@ const Frame2319 = () => {
                                                                     </div>
                                                                     <div
                                                                         id="2_558"
-                                                                        className="vector-wrapper-2_558 pixso-relative-no-shrink pixso-flex"
+                                                                        className={`vector-wrapper-2_558 pixso-relative-no-shrink pixso-flex${deepSearch ? "" : " hc-toggle-off"}`}
                                                                     >
                                                                         <div
                                                                             id="2_558"
@@ -1196,6 +1291,7 @@ const Frame2319 = () => {
                                                         <div
                                                             id="2_560"
                                                             className="stroke-wrapper-2_560 pixso-relative-no-shrink pixso-flex"
+                                                            {...pressable(() => void updateSetting("citations"))}
                                                         >
                                                             <div className="Pixso-frame-2_560 pixso-relative-no-shrink pixso-flex">
                                                                 <div className="frame-content-2_560 pixso-relative-flex">
@@ -1224,7 +1320,7 @@ const Frame2319 = () => {
                                                                     </div>
                                                                     <div
                                                                         id="2_564"
-                                                                        className="vector-wrapper-2_564 pixso-relative-no-shrink pixso-flex"
+                                                                        className={`vector-wrapper-2_564 pixso-relative-no-shrink pixso-flex${citations ? "" : " hc-toggle-off"}`}
                                                                     >
                                                                         <div
                                                                             id="2_564"
@@ -1269,6 +1365,10 @@ const Frame2319 = () => {
                                                                 <div
                                                                     id="2_573"
                                                                     className="stroke-wrapper-2_573 pixso-relative-no-shrink pixso-flex"
+                                                                    {...pressable(() => {
+                                                                        notify("已取消创建项目");
+                                                                        navigate("/frame2688");
+                                                                    })}
                                                                 >
                                                                     <div className="Pixso-frame-2_573 pixso-relative-no-shrink pixso-flex">
                                                                         <div className="frame-content-2_573 pixso-relative-flex">
@@ -1287,6 +1387,7 @@ const Frame2319 = () => {
                                                                 <div
                                                                     id="2_575"
                                                                     className="Pixso-frame-2_575 pixso-relative-no-shrink pixso-flex"
+                                                                    {...pressable(() => void handleCreate())}
                                                                 >
                                                                     <div className="frame-content-2_575 pixso-relative-flex">
                                                                         <p

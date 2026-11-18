@@ -1,16 +1,24 @@
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 
 type Navigate = (to: string) => void
 
-export const navTo = (navigate: Navigate, path: string) => ({
-  role: 'button' as const,
-  tabIndex: 0,
-  style: { cursor: 'pointer' as const },
-  onClick: () => navigate(path),
-  onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      navigate(path)
-    }
-  },
+export const pressable = (
+    onClick: () => void,
+    options?: { stopPropagation?: boolean },
+) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    style: { cursor: 'pointer' as const },
+    onClick: (event: MouseEvent<HTMLElement>) => {
+        if (options?.stopPropagation) event.stopPropagation()
+        onClick()
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onClick()
+        }
+    },
 })
+
+export const navTo = (navigate: Navigate, path: string) => pressable(() => navigate(path))

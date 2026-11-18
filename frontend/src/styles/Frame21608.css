@@ -1198,9 +1198,9 @@
 }
 
 .Pixso-frame-2_1766 {
-  width: 253px;
+  width: 360px;
   height: 42px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .frame-content-2_1766 {
@@ -2469,4 +2469,25 @@
   width: 100%;
   height: 100%;
   z-index: 2;
+}
+
+/* Keep the long header copy fully visible instead of clipping it. */
+.Pixso-frame-2_1765 {
+  height: auto;
+  min-height: 42px;
+  overflow: visible;
+  align-items: flex-start;
+}
+
+.Pixso-frame-2_1766,
+.frame-content-2_1766 {
+  height: auto;
+  min-height: 42px;
+  overflow: visible;
+}
+
+.Pixso-paragraph-2_1767,
+.Pixso-paragraph-2_1768 {
+  white-space: normal;
+  line-height: 1.35;
 }

@@ -1,10 +1,131 @@
-import { useNavigate } from "react-router";
-import { navTo } from "@/utils/nav";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { api, type DocumentItem, type UploadJob } from "@/services/api";
+import { useFeedback } from "@/components/Feedback";
+import { useFilePicker } from "@/hooks/useFilePicker";
+import { navTo, pressable } from "@/utils/nav";
+import { getCurrentProject } from "@/utils/project";
 import "@/styles/Frame2688.css";
+
+const STATUS_LABELS: Record<string, string> = {
+    queued: "排队中",
+    processing: "解析中",
+    completed: "已完成",
+    failed: "失败",
+    partial: "部分完成",
+    duplicate: "重复文件",
+};
+
 const Frame2688 = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { notify, track } = useFeedback();
+    const [dragging, setDragging] = useState(false);
+    const [uploadJob, setUploadJob] = useState<UploadJob | null>(null);
+    const [documents, setDocuments] = useState<DocumentItem[]>([]);
+    const pollTimer = useRef<number | null>(null);
+    const notifiedJobs = useRef<Set<string>>(new Set());
+    const routeState = location.state as
+        | { projectId?: string; projectName?: string }
+        | null;
+    const savedProject = getCurrentProject();
+    const projectId = routeState?.projectId ?? savedProject.id;
+    const projectName = routeState?.projectName ?? savedProject.name;
+
+    const loadDocuments = async () => {
+        try {
+            const response = await api.documents.list(projectId);
+            setDocuments(response.items);
+        } catch {
+            // 后端刚启动时忽略列表加载失败，后续任务完成会再次刷新
+        }
+    };
+
+    useEffect(() => {
+        void loadDocuments();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId]);
+
+    const startPolling = (jobId: string) => {
+        if (pollTimer.current) {
+            window.clearInterval(pollTimer.current);
+            pollTimer.current = null;
+        }
+        const tick = async () => {
+            try {
+                const response = await api.uploads.get(jobId);
+                setUploadJob(response.item);
+                if (["completed", "failed", "partial"].includes(response.item.status)) {
+                    if (pollTimer.current) {
+                        window.clearInterval(pollTimer.current);
+                        pollTimer.current = null;
+                    }
+                    if (response.item.status === "completed") {
+                        void loadDocuments();
+                        if (!notifiedJobs.current.has(jobId)) {
+                            notifiedJobs.current.add(jobId);
+                            notify("资料解析完成，可以开始提问了", "success");
+                        }
+                    }
+                }
+            } catch {
+                if (pollTimer.current) {
+                    window.clearInterval(pollTimer.current);
+                    pollTimer.current = null;
+                }
+            }
+        };
+        void tick();
+        pollTimer.current = window.setInterval(() => void tick(), 1200);
+    };
+
+    useEffect(
+        () => () => {
+            if (pollTimer.current) window.clearInterval(pollTimer.current);
+        },
+        [],
+    );
+
+    const handleFiles = async (files: File[]) => {
+        if (!files.length) return;
+        const result = await track(() => api.uploads.create(files, projectId), {
+            loading: `正在上传 ${files.length} 个文件...`,
+            success: `${files.length} 个文件已提交解析`,
+        });
+        if (result) {
+            setUploadJob(result.item);
+            startPolling(result.item.id);
+        }
+    };
+
+    const { open: openFilePicker, input: fileInput } = useFilePicker(handleFiles);
+
+    const handlePasteLink = async () => {
+        const url = window.prompt("粘贴网页链接");
+        if (!url) return;
+        const result = await track(() => api.uploads.url(url, projectId), {
+            loading: "正在抓取网页内容...",
+            success: "网页已提交解析",
+        });
+        if (result) {
+            setUploadJob(result.item);
+            startPolling(result.item.id);
+        }
+    };
+
+    const handleCloudSync = () =>
+        track(() => api.uploads.cloud("cloud", projectId), {
+            loading: "正在连接云盘...",
+            success: "云盘资料已加入解析队列",
+        });
+
+    const uploadStatusLabel = uploadJob
+        ? STATUS_LABELS[uploadJob.status] || uploadJob.status
+        : "";
+
     return (
         <div className="scroll-container">
+            {fileInput}
             <div
                 id="2_688"
                 className="Pixso-frame-2_688 pixso-relative-no-shrink pixso-flex"
@@ -42,6 +163,7 @@ const Frame2688 = () => {
                                                 <p
                                                     id="2_707"
                                                     className="Pixso-paragraph-2_707 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"HyperCortex"}
                                                 </p>
@@ -474,7 +596,7 @@ const Frame2688 = () => {
                                                         id="2_791"
                                                         className="Pixso-paragraph-2_791 pixso-relative-auto-size pixso-flex-shrink-0"
                                                     >
-                                                        {"产品知识中枢"}
+                                                        {projectName}
                                                     </p>
                                                     <div
                                                         id="2_792"
@@ -612,7 +734,7 @@ const Frame2688 = () => {
                                                         <p
                                                             id="2_814"
                                                             className="Pixso-paragraph-2_814 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                            {...navTo(navigate, "/frame2688")}
+                                                            {...pressable(() => notify("项目设置面板（演示）"))}
                                                         >
                                                             {"项目设置"}
                                                         </p>
@@ -680,7 +802,7 @@ const Frame2688 = () => {
                                                 <p
                                                     id="2_831"
                                                     className="Pixso-paragraph-2_831 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                    {...navTo(navigate, "/frame21608")}
+                                                    {...navTo(navigate, "/frame21123")}
                                                 >
                                                     {"知识库Q&A"}
                                                 </p>
@@ -701,7 +823,7 @@ const Frame2688 = () => {
                                                 <p
                                                     id="2_847"
                                                     className="Pixso-paragraph-2_847 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                    {...navTo(navigate, "/frame21123")}
+                                                    {...navTo(navigate, "/frame21608")}
                                                 >
                                                     {"深度思考与研究"}
                                                 </p>
@@ -782,6 +904,7 @@ const Frame2688 = () => {
                                                                         <div
                                                                             id="2_860"
                                                                             className="stroke-wrapper-2_860 pixso-relative-no-shrink pixso-flex"
+                                                                            {...pressable(() => void handleCloudSync(), { stopPropagation: true })}
                                                                         >
                                                                             <div className="Pixso-frame-2_860 pixso-relative-no-shrink pixso-flex">
                                                                                 <div className="frame-content-2_860 pixso-relative-flex">
@@ -804,6 +927,7 @@ const Frame2688 = () => {
                                                                         <div
                                                                             id="2_867"
                                                                             className="Pixso-frame-2_867 pixso-relative-no-shrink pixso-flex"
+                                                                            {...pressable(openFilePicker, { stopPropagation: true })}
                                                                         >
                                                                             <div className="frame-content-2_867 pixso-relative-flex">
                                                                                 <div
@@ -826,7 +950,18 @@ const Frame2688 = () => {
                                                         </div>
                                                         <div
                                                             id="2_872"
-                                                            className="stroke-wrapper-2_872 pixso-relative-no-shrink pixso-flex"
+                                                            className={`stroke-wrapper-2_872 pixso-relative-no-shrink pixso-flex${dragging ? " hc-file-drop-active" : ""}`}
+                                                            {...pressable(openFilePicker, { stopPropagation: true })}
+                                                            onDragOver={(event) => {
+                                                                event.preventDefault();
+                                                                setDragging(true);
+                                                            }}
+                                                            onDragLeave={() => setDragging(false)}
+                                                            onDrop={(event) => {
+                                                                event.preventDefault();
+                                                                setDragging(false);
+                                                                void handleFiles(Array.from(event.dataTransfer.files));
+                                                            }}
                                                         >
                                                             <div className="Pixso-frame-2_872 pixso-relative-no-shrink pixso-flex">
                                                                 <div className="frame-content-2_872 pixso-relative-flex">
@@ -865,6 +1000,7 @@ const Frame2688 = () => {
                                                                             <div
                                                                                 id="2_881"
                                                                                 className="stroke-wrapper-2_881 pixso-relative-no-shrink pixso-flex"
+                                                                                {...pressable(openFilePicker, { stopPropagation: true })}
                                                                             >
                                                                                 <div className="Pixso-frame-2_881 pixso-relative-no-shrink pixso-flex">
                                                                                     <div className="frame-content-2_881 pixso-relative-flex">
@@ -887,6 +1023,7 @@ const Frame2688 = () => {
                                                                             <div
                                                                                 id="2_885"
                                                                                 className="stroke-wrapper-2_885 pixso-relative-no-shrink pixso-flex"
+                                                                                {...pressable(() => void handlePasteLink(), { stopPropagation: true })}
                                                                             >
                                                                                 <div className="Pixso-frame-2_885 pixso-relative-no-shrink pixso-flex">
                                                                                     <div className="frame-content-2_885 pixso-relative-flex">
@@ -909,6 +1046,7 @@ const Frame2688 = () => {
                                                                             <div
                                                                                 id="2_890"
                                                                                 className="stroke-wrapper-2_890 pixso-relative-no-shrink pixso-flex"
+                                                                                {...pressable(() => void handleCloudSync(), { stopPropagation: true })}
                                                                             >
                                                                                 <div className="Pixso-frame-2_890 pixso-relative-no-shrink pixso-flex">
                                                                                     <div className="frame-content-2_890 pixso-relative-flex">
@@ -934,6 +1072,79 @@ const Frame2688 = () => {
                                                             </div>
                                                             <div className="stroke-2_872"></div>
                                                         </div>
+                                                        {uploadJob && (
+                                                            <div className="hc-upload-panel">
+                                                                <div className="hc-upload-panel__head">
+                                                                    <div>
+                                                                        <p className="hc-upload-panel__title">解析队列</p>
+                                                                        <p className="hc-upload-panel__subtitle">
+                                                                            {uploadJob.files.length} 个文件 · 已处理{" "}
+                                                                            {uploadJob.processed ?? 0}/{uploadJob.total}
+                                                                        </p>
+                                                                    </div>
+                                                                    <span
+                                                                        className={`hc-upload-panel__status hc-upload-panel__status--${uploadJob.status}`}
+                                                                    >
+                                                                        {uploadStatusLabel}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="hc-upload-panel__list">
+                                                                    {uploadJob.files.map((file) => (
+                                                                        <div
+                                                                            className="hc-upload-file"
+                                                                            key={file.id}
+                                                                        >
+                                                                            <div className="hc-upload-file__info">
+                                                                                <span className="hc-upload-file__name">
+                                                                                    {file.name}
+                                                                                </span>
+                                                                                <span className="hc-upload-file__meta">
+                                                                                    {file.status === "completed"
+                                                                                        ? `${file.chunks ?? 0} 个片段 · ${file.pages ?? 0} 页`
+                                                                                        : file.error ||
+                                                                                          `${STATUS_LABELS[file.status] || file.status} · ${file.progress}%`}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="hc-upload-file__bar">
+                                                                                <span
+                                                                                    style={{
+                                                                                        width: `${Math.min(100, Math.max(0, file.progress))}%`,
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {documents.length > 0 && (
+                                                            <div className="hc-doc-panel">
+                                                                <div className="hc-doc-panel__head">
+                                                                    <span>已入库资料</span>
+                                                                    <span className="hc-doc-panel__count">
+                                                                        {documents.length}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="hc-doc-panel__list">
+                                                                    {documents.map((document) => (
+                                                                        <div
+                                                                            className="hc-doc-item"
+                                                                            key={document.id}
+                                                                        >
+                                                                            <span className="hc-doc-item__name">
+                                                                                {document.filename}
+                                                                            </span>
+                                                                            <span className="hc-doc-item__meta">
+                                                                                {document.status === "completed"
+                                                                                    ? `${document.chunks} 个片段 · ${document.pages} 页`
+                                                                                    : document.error ||
+                                                                                      `${STATUS_LABELS[document.status] || document.status} · ${document.progress}%`}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                         <div
                                                             id="2_897"
                                                             className="stroke-wrapper-2_897 pixso-relative-no-shrink pixso-flex"
