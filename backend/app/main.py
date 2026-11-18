@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router
+from .api.wiki import router as wiki_router
 from .config import get_settings
 from .db import Database
 from .services.bm25 import BM25IndexManager
@@ -142,6 +143,7 @@ async def root():
 
 
 app.include_router(router)
+app.include_router(wiki_router)
 
 
 # 生产模式：由 FastAPI 同源托管前端构建产物（frontend/dist）

@@ -1,39 +1,19 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { api } from "@/services/api";
 import { useFeedback } from "@/components/Feedback";
 import { navTo, pressable } from "@/utils/nav";
-import { getCurrentProject } from "@/utils/project";
+import WikiContentPanel from "@/components/WikiContentPanel";
 import "@/styles/Frame21608.css";
 const Frame21608 = () => {
     const navigate = useNavigate();
-    const { notify, track } = useFeedback();
+    const { notify } = useFeedback();
     const [researchMode, setResearchMode] = useState("深度 = 高");
-    const [researchTopic, setResearchTopic] = useState("");
-    const topicRef = useRef<HTMLDivElement>(null);
-    const projectId = getCurrentProject().id;
 
     const cycleResearchMode = () => {
         const modes = ["深度 = 高", "深度 = 标准", "快速检索"];
         const next = modes[(modes.indexOf(researchMode) + 1) % modes.length];
         setResearchMode(next);
         notify(`研究模式已切换为：${next}`);
-    };
-
-    const handleStartResearch = async () => {
-        if (!researchTopic.trim()) {
-            notify("请先输入研究主题", "error");
-            return;
-        }
-        const result = await track(() => api.research.start(researchTopic.trim(), projectId), {
-            loading: "正在启动研究任务...",
-            success: "研究任务已启动",
-        });
-        if (result) {
-            notify(`任务 ${result.item.id.slice(0, 8)} 已进入研究队列`, "success");
-            setResearchTopic("");
-            if (topicRef.current) topicRef.current.textContent = "";
-        }
     };
 
     return (
@@ -1354,41 +1334,6 @@ const Frame21608 = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="hc-empty-state">
-                                                            <div className="hc-empty-state__badge">深度研究</div>
-                                                            <p className="hc-empty-state__title">还没有研究任务</p>
-                                                            <p className="hc-empty-state__desc">
-                                                                输入一个研究主题，HyperCortex 会拆解问题、检索证据并生成带引用的结论。
-                                                            </p>
-                                                            <div
-                                                                ref={topicRef}
-                                                                className="hc-empty-state__input hc-editable"
-                                                                data-placeholder="例如：2025 Q4 是否应继续投入移动端？"
-                                                                contentEditable
-                                                                suppressContentEditableWarning
-                                                                onInput={(event) =>
-                                                                    setResearchTopic(event.currentTarget.textContent ?? "")
-                                                                }
-                                                            />
-                                                            <div className="hc-empty-state__actions">
-                                                                <div
-                                                                    className="hc-secondary-button"
-                                                                    {...pressable(() => {
-                                                                        setResearchTopic("");
-                                                                        if (topicRef.current) topicRef.current.textContent = "";
-                                                                        notify("已清空研究主题");
-                                                                    })}
-                                                                >
-                                                                    清空
-                                                                </div>
-                                                                <div
-                                                                    className="hc-primary-button"
-                                                                    {...pressable(() => void handleStartResearch())}
-                                                                >
-                                                                    开始研究
-                                                                </div>
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div
@@ -1949,6 +1894,7 @@ const Frame21608 = () => {
                     </div>
                 </div>
             </div>
+            <WikiContentPanel />
         </div>
     );
 };
