@@ -1,5 +1,8 @@
+import { useNavigate } from "react-router";
+import { navTo } from "@/utils/nav";
 import "@/styles/Frame21608.css";
 const Frame21608 = () => {
+    const navigate = useNavigate();
     return (
         <div className="scroll-container">
             <div
@@ -98,6 +101,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1636"
                                                     className="Pixso-paragraph-2_1636 pixso-position-relative pixso-h-auto"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"工作区"}
                                                 </p>
@@ -119,6 +123,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1644"
                                                     className="Pixso-paragraph-2_1644 pixso-position-relative pixso-h-auto"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"知识地图"}
                                                 </p>
@@ -138,6 +143,7 @@ const Frame21608 = () => {
                                         <p
                                             id="2_1649"
                                             className="Pixso-paragraph-2_1649 pixso-position-relative pixso-h-auto"
+                                            {...navTo(navigate, "/")}
                                         >
                                             {"新建项目"}
                                         </p>
@@ -198,6 +204,7 @@ const Frame21608 = () => {
                                                             <p
                                                                 id="2_1659"
                                                                 className="Pixso-paragraph-2_1659 pixso-relative-no-shrink pixso-h-auto"
+                                                                {...navTo(navigate, "/frame2688")}
                                                             >
                                                                 {"产品知识中枢"}
                                                             </p>
@@ -332,6 +339,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1682"
                                                     className="Pixso-paragraph-2_1682 pixso-position-relative pixso-h-auto"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"查看全部 12 个项目"}
                                                 </p>
@@ -517,6 +525,7 @@ const Frame21608 = () => {
                                                         <p
                                                             id="2_1723"
                                                             className="Pixso-paragraph-2_1723 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                            {...navTo(navigate, "/frame2688")}
                                                         >
                                                             {"项目设置"}
                                                         </p>
@@ -546,6 +555,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1730"
                                                     className="Pixso-paragraph-2_1730 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame2688")}
                                                 >
                                                     {"知识上传窗口"}
                                                 </p>
@@ -579,6 +589,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1739"
                                                     className="Pixso-paragraph-2_1739 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame21608")}
                                                 >
                                                     {"知识库Q&A"}
                                                 </p>
@@ -599,6 +610,7 @@ const Frame21608 = () => {
                                                 <p
                                                     id="2_1755"
                                                     className="Pixso-paragraph-2_1755 pixso-relative-auto-size pixso-flex-shrink-0"
+                                                    {...navTo(navigate, "/frame21123")}
                                                 >
                                                     {"深度思考与研究"}
                                                 </p>
