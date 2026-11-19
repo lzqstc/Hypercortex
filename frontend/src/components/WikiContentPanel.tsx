@@ -73,7 +73,7 @@ const shortPath = (path: string) => {
     return index >= 0 ? normalized.slice(index) : normalized;
 };
 
-const WikiContentPanel = () => {
+const WikiContentPanel = ({ projectId }: { projectId?: string }) => {
     const [project, setProject] = useState<ProjectItem | null>(null);
     const [sources, setSources] = useState<SourceItem[]>([]);
     const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -87,34 +87,70 @@ const WikiContentPanel = () => {
     const load = useCallback(async () => {
         setLoading(true);
         setError("");
+        setSources([]);
+        setReviews([]);
+        setLint({ issues: [], stats: { pages: 0, errors: 0, warnings: 0 } });
+        setDetail(null);
+        setProject(null);
+        const currentId = projectId || "default";
         try {
-            const projectResponse = await fetch("/api/wiki/projects");
-            if (!projectResponse.ok) throw new Error("无法读取 LLM Wiki 项目列表");
-            const projectData = (await projectResponse.json()) as { items: ProjectItem[] };
-            const current = (projectData.items || [])[0];
-            if (!current) throw new Error("没有找到 LLM Wiki 项目");
-            setProject(current);
-            const query = `?project=${encodeURIComponent(current.id)}`;
-            const [sourceResponse, reviewResponse, lintResponse] = await Promise.all([
-                fetch(`/api/wiki/sources${query}`),
-                fetch(`/api/wiki/reviews${query}`),
-                fetch(`/api/wiki/lint${query}`),
+            const [projectResponse, documentResponse] = await Promise.all([
+                fetch("/api/wiki/projects").catch(() => null),
+                fetch(`/api/documents?project_id=${encodeURIComponent(currentId)}`),
             ]);
-            if (!sourceResponse.ok || !reviewResponse.ok || !lintResponse.ok) {
-                throw new Error("LLM Wiki 数据读取失败");
+            const projectData = projectResponse?.ok
+                ? ((await projectResponse.json()) as { items: ProjectItem[] })
+                : { items: [] as ProjectItem[] };
+            const wikiProjects = projectData.items || [];
+            const current = wikiProjects.find(
+                (item) => item.id === currentId || item.name === currentId,
+            ) ?? null;
+            if (current) {
+                setProject(current);
+                const query = `?project=${encodeURIComponent(current.id)}`;
+                const [sourceResponse, reviewResponse, lintResponse] = await Promise.all([
+                    fetch(`/api/wiki/sources${query}`),
+                    fetch(`/api/wiki/reviews${query}`),
+                    fetch(`/api/wiki/lint${query}`),
+                ]);
+                if (!sourceResponse.ok || !reviewResponse.ok || !lintResponse.ok) {
+                    throw new Error("LLM Wiki 数据读取失败");
+                }
+                const sourceData = (await sourceResponse.json()) as { items: SourceItem[] };
+                const reviewData = (await reviewResponse.json()) as { items: ReviewItem[] };
+                const lintData = (await lintResponse.json()) as LintData;
+                setSources(sourceData.items || []);
+                setReviews(reviewData.items || []);
+                setLint({ issues: lintData.issues || [], stats: lintData.stats });
+            } else if (documentResponse.ok) {
+                const documentData = (await documentResponse.json()) as {
+                    items: { id: string; filename: string; size: number; mime: string; createdAt: string; chunks: number; status: string }[];
+                };
+                const items = documentData.items || [];
+                setProject({ id: currentId, name: "当前项目", exists: true });
+                setSources(
+                    items.map((item) => ({
+                        name: item.filename,
+                        path: item.id,
+                        size: item.size,
+                        ext: item.filename.includes(".") ? item.filename.split(".").pop() || "file" : "file",
+                        modifiedAt: item.createdAt,
+                        ingested: item.chunks > 0,
+                        wikiPage: "",
+                        wikiPages: 0,
+                    })),
+                );
+                setLint({
+                    issues: [],
+                    stats: { pages: items.reduce((sum, item) => sum + (item.chunks > 0 ? 1 : 0), 0), errors: 0, warnings: 0 },
+                });
             }
-            const sourceData = (await sourceResponse.json()) as { items: SourceItem[] };
-            const reviewData = (await reviewResponse.json()) as { items: ReviewItem[] };
-            const lintData = (await lintResponse.json()) as LintData;
-            setSources(sourceData.items || []);
-            setReviews(reviewData.items || []);
-            setLint({ issues: lintData.issues || [], stats: lintData.stats });
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : "加载失败");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [projectId]);
 
     useEffect(() => {
         void load();
@@ -293,7 +329,9 @@ const WikiContentPanel = () => {
 
             {error ? <div className="hc-wiki__error">{error}</div> : null}
 
-            {detail ? (
+            {!loading && !error && !project ? (
+                <div className="hc-wiki__empty">当前项目暂未关联 LLM Wiki 资料</div>
+            ) : detail ? (
                 <div className="hc-wiki__detail">{renderDetail()}</div>
             ) : (
                 <div className="hc-wiki__cards">

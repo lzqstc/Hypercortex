@@ -3,7 +3,9 @@ import { useNavigate } from "react-router";
 import { api } from "@/services/api";
 import { useFeedback } from "@/components/Feedback";
 import { navTo, pressable } from "@/utils/nav";
-import { setCurrentProject } from "@/utils/project";
+import { getCurrentProject, setCurrentProject } from "@/utils/project";
+import ProjectSidebarList from "@/components/ProjectSidebarList";
+import QuickSearch from "@/components/QuickSearch";
 import "@/styles/Frame2319.css";
 const Frame2319 = () => {
     const navigate = useNavigate();
@@ -15,6 +17,7 @@ const Frame2319 = () => {
     const [autoSync, setAutoSync] = useState(true);
     const [deepSearch, setDeepSearch] = useState(true);
     const [citations, setCitations] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
 
     const selectTemplate = (value: string) => {
         setTemplate(value);
@@ -50,6 +53,18 @@ const Frame2319 = () => {
         });
     };
 
+    const applyRecommended = () => {
+        setAutoSync(true);
+        setDeepSearch(true);
+        setCitations(true);
+        setTemplate("产品知识库");
+        notify("已应用推荐配置：语义切片 · 混合检索 · 引用溯源", "success");
+        void track(
+            () => api.settings.update({ autoSync: true, deepSearch: true, citations: true }),
+            { error: "推荐配置同步失败" },
+        );
+    };
+
     const handleCreate = async () => {
         if (!projectName.trim()) {
             notify("请先输入项目名称", "error");
@@ -78,6 +93,7 @@ const Frame2319 = () => {
 
     return (
         <div className="scroll-container">
+            {searchOpen ? <QuickSearch onClose={() => setSearchOpen(false)} /> : null}
             <div
                 id="2_319"
                 className="Pixso-frame-2_319 pixso-relative-no-shrink pixso-flex"
@@ -260,6 +276,7 @@ const Frame2319 = () => {
                                                 </p>
                                             </div>
                                         </div>
+                                        <ProjectSidebarList currentProjectId={getCurrentProject().id} />
                                         <div
                                             id="2_367"
                                             className="stroke-wrapper-2_367 pixso-relative-no-shrink pixso-flex"
@@ -556,7 +573,7 @@ const Frame2319 = () => {
                                             <div
                                                 id="2_420"
                                                 className="stroke-wrapper-2_420 pixso-relative-no-shrink pixso-flex"
-                                                {...pressable(() => notify("全局搜索面板（演示）"))}
+                                                {...pressable(() => setSearchOpen(true))}
                                             >
                                                 <div className="Pixso-frame-2_420 pixso-relative-no-shrink pixso-flex">
                                                     <div className="frame-content-2_420 pixso-relative-flex">
@@ -1478,6 +1495,7 @@ const Frame2319 = () => {
                                                                 <div
                                                                     id="2_594"
                                                                     className="Pixso-frame-2_594 pixso-relative-no-shrink pixso-flex"
+                                                                    {...pressable(applyRecommended)}
                                                                 >
                                                                     <div className="frame-content-2_594 pixso-relative-flex">
                                                                         <p

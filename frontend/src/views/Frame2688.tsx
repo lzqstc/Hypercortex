@@ -5,6 +5,7 @@ import { useFeedback } from "@/components/Feedback";
 import { useFilePicker } from "@/hooks/useFilePicker";
 import { navTo, pressable } from "@/utils/nav";
 import { getCurrentProject } from "@/utils/project";
+import ProjectSidebarList from "@/components/ProjectSidebarList";
 import "@/styles/Frame2688.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -308,6 +309,7 @@ const Frame2688 = () => {
                                                 </p>
                                             </div>
                                         </div>
+                                        <ProjectSidebarList currentProjectId={projectId} />
                                         <div
                                             id="2_736"
                                             className="stroke-wrapper-2_736 pixso-relative-no-shrink pixso-flex"
@@ -734,7 +736,7 @@ const Frame2688 = () => {
                                                         <p
                                                             id="2_814"
                                                             className="Pixso-paragraph-2_814 pixso-relative-auto-size pixso-flex-shrink-0"
-                                                            {...pressable(() => notify("项目设置面板（演示）"))}
+                                                            {...navTo(navigate, "/")}
                                                         >
                                                             {"项目设置"}
                                                         </p>
@@ -1145,6 +1147,54 @@ const Frame2688 = () => {
                                                                 </div>
                                                             </div>
                                                         )}
+                                                        <div className="hc-panel-grid">
+                                                            <section className="hc-info-card">
+                                                                <h3 className="hc-info-card__title">
+                                                                    已入库资料
+                                                                    <span className="hc-info-card__hint">
+                                                                        {documents.length ? `共 ${documents.length} 份` : "等待上传"}
+                                                                    </span>
+                                                                </h3>
+                                                                {documents.length === 0 ? (
+                                                                    <div className="hc-info-card__empty">
+                                                                        <strong>知识库还是空的</strong>
+                                                                        <span>上传文件或粘贴网页链接后，解析完成的资料会显示在这里</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="hc-doc-panel__list">
+                                                                        {documents.slice(0, 5).map((document) => (
+                                                                            <div className="hc-doc-item" key={`overview-${document.id}`}>
+                                                                                <span className="hc-doc-item__name">{document.filename}</span>
+                                                                                <span className="hc-doc-item__meta">
+                                                                                    {STATUS_LABELS[document.status] || document.status}
+                                                                                    {document.status === "completed" ? ` · ${document.chunks} 片段` : ""}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </section>
+                                                            <section className="hc-info-card">
+                                                                <h3 className="hc-info-card__title">
+                                                                    解析概览
+                                                                    <span className="hc-info-card__hint">实时统计</span>
+                                                                </h3>
+                                                                <div className="hc-info-card__stats">
+                                                                    <div className="hc-info-card__stat">
+                                                                        <b>{documents.length}</b>
+                                                                        <span>资料总数</span>
+                                                                    </div>
+                                                                    <div className="hc-info-card__stat">
+                                                                        <b>{documents.filter((item) => item.status === "completed").length}</b>
+                                                                        <span>解析完成</span>
+                                                                    </div>
+                                                                    <div className="hc-info-card__stat">
+                                                                        <b>{documents.reduce((sum, item) => sum + (item.chunks || 0), 0)}</b>
+                                                                        <span>切片总量</span>
+                                                                    </div>
+                                                                </div>
+                                                            </section>
+                                                        </div>
                                                         <div
                                                             id="2_897"
                                                             className="stroke-wrapper-2_897 pixso-relative-no-shrink pixso-flex"

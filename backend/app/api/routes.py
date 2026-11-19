@@ -12,7 +12,15 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from ..models import ChatRequest, CloudSyncRequest, ProjectCreate, ResearchCreate, SettingsPatch, UrlIngestRequest
+from ..models import (
+    ChatRequest,
+    CloudSyncRequest,
+    ProjectCreate,
+    ResearchCreate,
+    ResearchRun,
+    SettingsPatch,
+    UrlIngestRequest,
+)
 from ..services.parsers import ParserError, _validate_public_url
 
 logger = logging.getLogger(__name__)
@@ -79,6 +87,16 @@ async def create_project(request: Request, payload: ProjectCreate) -> dict[str, 
     )
     state.db.add_notification("项目创建成功", f"{project['name']} 已创建，可以开始上传资料")
     return {"item": project}
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(request: Request, project_id: str) -> dict[str, Any]:
+    state = _state(request)
+    if project_id == "default":
+        raise HTTPException(status_code=400, detail="默认知识库不能删除")
+    if not state.db.delete_project(project_id):
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {"ok": True}
 
 
 @router.get("/uploads")
@@ -317,9 +335,116 @@ async def list_research(request: Request, project_id: str | None = None) -> dict
 async def create_research(request: Request, payload: ResearchCreate) -> dict[str, Any]:
     state = _state(request)
     _project_or_404(request, payload.project_id)
-    research = state.db.create_research(payload.project_id, payload.topic.strip())
-    state.db.add_notification("研究任务已启动", payload.topic)
+    topic = payload.topic.strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="研究主题不能为空")
+    research = state.db.create_research(payload.project_id, topic)
+    state.db.add_notification("研究任务已启动", topic)
     return {"item": research}
+
+
+def _research_or_404(request: Request, research_id: str) -> dict[str, Any]:
+    research = _state(request).db.get_research(research_id)
+    if not research:
+        raise HTTPException(status_code=404, detail="研究任务不存在")
+    return research
+
+
+@router.get("/research/{research_id}")
+async def get_research(request: Request, research_id: str) -> dict[str, Any]:
+    return {"item": _research_or_404(request, research_id)}
+
+
+@router.post("/research/{research_id}/run")
+async def run_research(
+    request: Request, research_id: str, payload: ResearchRun | None = None
+) -> dict[str, Any]:
+    """执行研究：复用 RAG 检索与回答链路，产出可归档的 wiki 结论卡片。"""
+    state = _state(request)
+    research = _research_or_404(request, research_id)
+    topic = (payload.topic.strip() if payload and payload.topic else research["topic"]).strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="研究主题不能为空")
+    if len(topic) > 2000:
+        raise HTTPException(status_code=400, detail="研究主题不能超过 2000 字")
+
+    updated = state.db.update_research(research_id, {"topic": topic, "status": "running"})
+    try:
+        conversation = await state.rag.ask(
+            project_id=research["projectId"],
+            question=topic,
+            top_k=8,
+            include_citations=True,
+            history=[],
+        )
+    except Exception:  # noqa: BLE001 - 统一转成用户可读错误，避免泄露内部细节
+        logger.exception("Research run failed: %s", research_id)
+        state.db.update_research(research_id, {"status": "failed"})
+        raise HTTPException(status_code=502, detail="研究执行失败，请稍后重试或补充资料") from None
+
+    sources = conversation.get("sources") or []
+    answer = (conversation.get("answer") or "").strip()
+    if not answer:
+        state.db.update_research(research_id, {"status": "failed"})
+        raise HTTPException(status_code=502, detail="研究未生成有效结论，请补充资料后重试")
+
+    title = topic if len(topic) <= 60 else f"{topic[:60]}…"
+    confidence = 0.92 if sources else 0.55
+    card = {
+        "id": f"card_{uuid.uuid4().hex}",
+        "researchId": research_id,
+        "projectId": research["projectId"],
+        "title": title,
+        "content": answer,
+        "sources": sources,
+        "confidence": confidence,
+        "archived": False,
+        "createdAt": conversation.get("createdAt") or updated["updatedAt"],
+    }
+    steps = research.get("steps") or [
+        "拆解研究主题",
+        "检索并聚类证据",
+        "交叉验证矛盾点",
+        "生成结构化结论",
+        "输出 wiki 卡片",
+    ]
+    completed = state.db.update_research(
+        research_id, {"status": "completed", "steps": steps, "result": card}
+    )
+    state.db.add_notification("研究结论已生成", topic[:120])
+    return {"item": completed}
+
+
+@router.post("/research/{research_id}/archive")
+async def archive_research(request: Request, research_id: str) -> dict[str, Any]:
+    state = _state(request)
+    research = _research_or_404(request, research_id)
+    result = research.get("result")
+    if not result:
+        raise HTTPException(status_code=400, detail="请先生成研究结论，再归档到知识库")
+    if result.get("archived"):
+        return {"item": result}
+    if not str(result.get("content") or "").strip():
+        raise HTTPException(status_code=400, detail="研究结论为空，无法归档")
+
+    card = state.db.create_card(
+        project_id=research["projectId"],
+        research_id=research_id,
+        title=str(result.get("title") or research["topic"]),
+        content=str(result.get("content") or ""),
+        sources=list(result.get("sources") or []),
+        confidence=float(result.get("confidence") or 0),
+    )
+    result["archived"] = True
+    result["id"] = card["id"]
+    state.db.update_research(research_id, {"result": result})
+    state.db.add_notification("研究结论已归档", card["title"][:120])
+    return {"item": card}
+
+
+@router.get("/cards")
+async def list_cards(request: Request, project_id: str | None = None) -> dict[str, Any]:
+    return {"items": _state(request).db.list_cards(project_id)}
 
 
 @router.get("/settings")

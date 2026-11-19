@@ -84,6 +84,25 @@ export interface ResearchTask {
   createdAt: string
 }
 
+export interface ResearchDetail extends ResearchTask {
+  projectId?: string
+  updatedAt?: string
+  result?: WikiCard | null
+  error?: string | null
+}
+
+export interface WikiCard {
+  id: string
+  researchId?: string
+  projectId: string
+  title: string
+  content: string
+  sources: ChatSource[]
+  confidence?: number
+  archived?: boolean
+  createdAt: string
+}
+
 export interface Settings {
   autoSync: boolean
   deepSearch: boolean
@@ -129,6 +148,10 @@ export const api = {
       request<{ item: Project }>('/api/projects', {
         method: 'POST',
         body: JSON.stringify(payload),
+      }),
+    remove: (projectId: string) =>
+      request<{ ok: boolean }>(`/api/projects/${encodeURIComponent(projectId)}`, {
+        method: 'DELETE',
       }),
   },
   uploads: {
@@ -188,11 +211,31 @@ export const api = {
       body: JSON.stringify({ query, projectId, topK }),
     }),
   research: {
+    list: (projectId?: string) =>
+      request<{ items: ResearchTask[] }>(
+        `/api/research${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`,
+      ),
     start: (topic: string, projectId = 'default') =>
       request<{ item: ResearchTask }>('/api/research', {
         method: 'POST',
         body: JSON.stringify({ topic, projectId }),
       }),
+    get: (id: string) => request<{ item: ResearchDetail }>(`/api/research/${encodeURIComponent(id)}`),
+    run: (id: string, topic?: string) =>
+      request<{ item: ResearchDetail }>(`/api/research/${encodeURIComponent(id)}/run`, {
+        method: 'POST',
+        body: JSON.stringify(topic ? { topic } : {}),
+      }),
+    archive: (id: string) =>
+      request<{ item: WikiCard }>(`/api/research/${encodeURIComponent(id)}/archive`, {
+        method: 'POST',
+      }),
+  },
+  cards: {
+    list: (projectId?: string) =>
+      request<{ items: WikiCard[] }>(
+        `/api/cards${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`,
+      ),
   },
   settings: {
     update: (payload: Partial<Settings>) =>

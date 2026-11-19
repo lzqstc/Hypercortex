@@ -60,3 +60,25 @@
 [id="2_1372"] {
   display: none !important;
 }
+
+/* 深度思考与研究：移除设计稿顶部标题行与“产品知识中枢”空白，项目设置已移至侧栏底部 */
+.hc-research-page [id="2_1702"],
+.hc-research-page [id="2_1766"] {
+  display: none !important;
+}
+
+/* 只隐藏标题行，保留 #2_1701 作为主内容区根容器的原有布局 */
+.hc-research-page [id="2_1769"] {
+  display: none !important;
+}
+
+/* 知识库 Q&A：移除顶部项目名 + 项目设置标题行，让下方标签栏上移 */
+[id="2_1217"] {
+  display: none !important;
+}
+
+/* 知识上传窗口：只隐藏 demo 标题行与项目设置，保留 #2_781 作为主内容区根容器的布局 */
+[id="2_782"],
+[id="2_796"] {
+  display: none !important;
+}

@@ -170,3 +170,330 @@ html body .hc-sidebar-collapsed .frame-content-2_1124 {
   border-color: rgba(75, 78, 240, 0.45);
   color: #4b4ef0;
 }
+
+/* 对话列表面板：固定宽度，可单独向左收起 */
+html body .stroke-wrapper-2_1278 {
+  flex: 0 0 238px;
+  width: 238px;
+  height: 100%;
+  min-height: 0;
+  transition: width 0.2s ease, flex-basis 0.2s ease;
+}
+
+html body .hc-chatlist-collapsed {
+  flex-basis: 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html body .hc-chatlist-collapsed .frame-content-2_1278 {
+  visibility: hidden;
+}
+
+.hc-chatlist-toggle {
+  position: fixed;
+  top: 112px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #475569;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: left 0.2s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hc-chatlist-toggle:hover {
+  border-color: rgba(75, 78, 240, 0.45);
+  color: #4b4ef0;
+}
+
+/* 多对话窗口列表：隐藏设计稿里的静态历史项 */
+html body .Pixso-frame-2_1289 {
+  display: none !important;
+}
+
+.hc-chat-windows {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.hc-chat-windows__label {
+  padding: 4px 9px 8px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.hc-chat-windows__empty {
+  padding: 12px 9px;
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+.hc-chat-window {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hc-chat-window:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.hc-chat-window.is-active {
+  border-color: rgba(75, 78, 240, 0.22);
+  background: rgba(75, 78, 240, 0.1);
+  color: #4b4ef0;
+  font-weight: 600;
+}
+
+.hc-chat-window__select {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 3px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hc-chat-window__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-chat-window__delete {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.hc-chat-window:hover .hc-chat-window__delete,
+.hc-chat-window.is-active .hc-chat-window__delete,
+.hc-chat-window__delete.is-confirming {
+  opacity: 1;
+}
+
+.hc-chat-window__delete:hover {
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #dc2626;
+}
+
+.hc-chat-window__delete.is-confirming {
+  width: auto;
+  padding: 0 5px;
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 引用改为紧凑文字叙述 */
+html body .hc-rag-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+html body .hc-rag-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 1px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+html body .hc-rag-source__head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+html body .hc-rag-source__title {
+  color: #475569;
+  font-weight: 500;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+html body .hc-rag-source__section {
+  display: inline;
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+html body .hc-rag-source__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: 10.5px;
+}
+
+html body .hc-rag-source__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #4b4ef0;
+  font-size: 10.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 查看原文：页面内弹窗，引用内容红框高亮 */
+.hc-source-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.hc-source-modal__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: 80vh;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.3);
+}
+
+.hc-source-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.hc-source-modal__title {
+  min-width: 0;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.hc-source-modal__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hc-source-modal__close:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.hc-source-modal__body {
+  min-height: 0;
+  padding: 18px;
+  overflow: auto;
+}
+
+.hc-source-modal__text {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hc-source-modal__mark {
+  display: inline;
+  padding: 5px 8px;
+  border: 2px solid #ef4444;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.06);
+  color: #1f2937;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* 空状态在聊天区水平垂直居中，底部让出输入卡高度 */
+html body .hc-chat-empty {
+  position: absolute;
+  inset: 0 0 104px 0;
+  width: auto;
+  min-height: 0;
+  padding: 24px;
+  pointer-events: none;
+}
+
+html body .hc-chat-empty__chip {
+  pointer-events: auto;
+}

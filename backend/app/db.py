@@ -98,6 +98,21 @@ CREATE TABLE IF NOT EXISTS researches (
     topic TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'running',
     steps_json TEXT NOT NULL DEFAULT '[]',
+    result_json TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wiki_cards (
+    id TEXT PRIMARY KEY,
+    research_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
@@ -152,6 +167,18 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._lock, self.connect() as connection:
             connection.executescript(SCHEMA)
+            # 兼容已有数据库：补齐后加的研究字段
+            research_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(researches)").fetchall()
+            }
+            if "result_json" not in research_columns:
+                connection.execute(
+                    "ALTER TABLE researches ADD COLUMN result_json TEXT NOT NULL DEFAULT ''"
+                )
+            if "updated_at" not in research_columns:
+                connection.execute(
+                    "ALTER TABLE researches ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"
+                )
             connection.execute(
                 "INSERT OR IGNORE INTO projects (id, name, template, team, visibility, created_at) "
                 "VALUES ('default', '默认知识库', '产品知识库', '产品与体验中心', '团队可见', ?)",
@@ -202,6 +229,13 @@ class Database:
                 "SELECT * FROM projects WHERE id = ?", (project_id,)
             ).fetchone()
         return self._project_row(row) if row else None
+
+    def delete_project(self, project_id: str) -> bool:
+        with self._lock, self.connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM projects WHERE id = ?", (project_id,)
+            )
+            return cursor.rowcount > 0
 
     @staticmethod
     def _project_row(row: sqlite3.Row) -> dict[str, Any]:
@@ -573,23 +607,91 @@ class Database:
             for row in rows
         ]
 
+    @staticmethod
+    def _research_payload(row: sqlite3.Row) -> dict[str, Any]:
+        result_raw = row["result_json"] if "result_json" in row.keys() else ""
+        try:
+            result = json.loads(result_raw) if result_raw else None
+        except (TypeError, json.JSONDecodeError):
+            result = None
+        return {
+            "id": row["id"],
+            "projectId": row["project_id"],
+            "topic": row["topic"],
+            "status": row["status"],
+            "steps": json.loads(row["steps_json"] or "[]"),
+            "result": result,
+            "error": row["error"] if "error" in row.keys() else None,
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"] if "updated_at" in row.keys() else row["created_at"],
+        }
+
     def create_research(self, project_id: str, topic: str) -> dict[str, Any]:
         research_id = f"res_{uuid.uuid4().hex}"
         created_at = utcnow()
         steps = ["拆解研究主题", "检索并聚类证据", "交叉验证矛盾点", "生成结构化结论", "输出 wiki 卡片"]
         with self._lock, self.connect() as connection:
             connection.execute(
-                "INSERT INTO researches (id, project_id, topic, status, steps_json, created_at) "
-                "VALUES (?, ?, ?, 'running', ?, ?)",
-                (research_id, project_id, topic, json.dumps(steps, ensure_ascii=False), created_at),
+                "INSERT INTO researches "
+                "(id, project_id, topic, status, steps_json, result_json, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'running', ?, '', ?, ?)",
+                (
+                    research_id,
+                    project_id,
+                    topic,
+                    json.dumps(steps, ensure_ascii=False),
+                    created_at,
+                    created_at,
+                ),
             )
         return {
             "id": research_id,
+            "projectId": project_id,
             "topic": topic,
             "status": "running",
             "steps": steps,
+            "result": None,
             "createdAt": created_at,
+            "updatedAt": created_at,
         }
+
+    def get_research(self, research_id: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM researches WHERE id = ?", (research_id,)
+            ).fetchone()
+        return self._research_payload(row) if row else None
+
+    def update_research(self, research_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {"topic", "status", "steps", "result"}
+        fields: list[str] = []
+        values: list[Any] = []
+        for key, value in updates.items():
+            if key not in allowed:
+                continue
+            column = {
+                "topic": "topic",
+                "status": "status",
+                "steps": "steps_json",
+                "result": "result_json",
+            }[key]
+            fields.append(f"{column} = ?")
+            if key in {"steps", "result"}:
+                values.append(json.dumps(value, ensure_ascii=False))
+            else:
+                values.append(value)
+        if not fields:
+            return self.get_research(research_id)
+        fields.append("updated_at = ?")
+        values.append(utcnow())
+        values.append(research_id)
+        with self._lock, self.connect() as connection:
+            cursor = connection.execute(
+                f"UPDATE researches SET {', '.join(fields)} WHERE id = ?", values
+            )
+            if not cursor.rowcount:
+                return None
+        return self.get_research(research_id)
 
     def list_researches(self, project_id: str | None = None, limit: int = 30) -> list[dict[str, Any]]:
         query = "SELECT * FROM researches"
@@ -601,12 +703,67 @@ class Database:
         params.append(limit)
         with self.connect() as connection:
             rows = connection.execute(query, params).fetchall()
+        return [self._research_payload(row) for row in rows]
+
+    def create_card(
+        self,
+        project_id: str,
+        research_id: str,
+        title: str,
+        content: str,
+        sources: list[dict[str, Any]],
+        confidence: float,
+    ) -> dict[str, Any]:
+        card_id = f"card_{uuid.uuid4().hex}"
+        created_at = utcnow()
+        with self._lock, self.connect() as connection:
+            connection.execute(
+                "INSERT INTO wiki_cards "
+                "(id, research_id, project_id, title, content, sources_json, confidence, archived, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
+                (
+                    card_id,
+                    research_id,
+                    project_id,
+                    title,
+                    content,
+                    json.dumps(sources, ensure_ascii=False),
+                    confidence,
+                    created_at,
+                ),
+            )
+        return {
+            "id": card_id,
+            "researchId": research_id,
+            "projectId": project_id,
+            "title": title,
+            "content": content,
+            "sources": sources,
+            "confidence": confidence,
+            "archived": True,
+            "createdAt": created_at,
+        }
+
+    def list_cards(self, project_id: str | None = None, limit: int = 30) -> list[dict[str, Any]]:
+        query = "SELECT * FROM wiki_cards"
+        params: list[Any] = []
+        if project_id:
+            query += " WHERE project_id = ?"
+            params.append(project_id)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self.connect() as connection:
+            rows = connection.execute(query, params).fetchall()
         return [
             {
                 "id": row["id"],
-                "topic": row["topic"],
-                "status": row["status"],
-                "steps": json.loads(row["steps_json"] or "[]"),
+                "researchId": row["research_id"],
+                "projectId": row["project_id"],
+                "title": row["title"],
+                "content": row["content"],
+                "sources": json.loads(row["sources_json"] or "[]"),
+                "confidence": row["confidence"],
+                "archived": bool(row["archived"]),
                 "createdAt": row["created_at"],
             }
             for row in rows

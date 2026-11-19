@@ -65,3 +65,9 @@ class ResearchCreate(BaseModel):
 
     topic: str = Field(min_length=1, max_length=2000)
     project_id: str = Field(default="default", alias="projectId")
+
+
+class ResearchRun(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    topic: str | None = Field(default=None, min_length=1, max_length=2000)

@@ -5,6 +5,7 @@ import { useFeedback } from "@/components/Feedback";
 import { useFilePicker } from "@/hooks/useFilePicker";
 import { navTo, pressable } from "@/utils/nav";
 import { getCurrentProject } from "@/utils/project";
+import ProjectSidebarList from "@/components/ProjectSidebarList";
 import "@/styles/Frame21123.css";
 import "@/styles/qa-layout.css";
 
@@ -19,16 +20,28 @@ type ChatMessage = {
     error?: boolean;
 };
 
+type ChatWindow = {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+};
+
 const Frame21123 = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { notify, track } = useFeedback();
     const [question, setQuestion] = useState("");
+    const [historyQuery, setHistoryQuery] = useState("");
     const [hybrid, setHybrid] = useState(true);
     const [citations, setCitations] = useState(true);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [chatWindows, setChatWindows] = useState<ChatWindow[]>([]);
+    const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
     const [streaming, setStreaming] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [chatListOpen, setChatListOpen] = useState(true);
+    const [previewSource, setPreviewSource] = useState<ChatSource | null>(null);
+    const [pendingDeleteWindow, setPendingDeleteWindow] = useState<string | null>(null);
     const inputRef = useRef<HTMLParagraphElement>(null);
     const streamRef = useRef<HTMLDivElement>(null);
     const routeState = location.state as { projectId?: string } | null;
@@ -50,31 +63,38 @@ const Frame21123 = () => {
     useEffect(() => {
         let cancelled = false;
         setMessages([]);
+        setChatWindows([]);
+        setActiveWindowId(null);
         void api
             .bootstrap()
             .then((data) => {
                 if (cancelled) return;
-                const restored = (data.conversations || [])
+                const restored: ChatWindow[] = (data.conversations || [])
                     .filter((item) => (item.projectId || "default") === projectId)
                     .slice(0, 12)
-                    .reverse()
-                    .flatMap((item) => [
-                        {
-                            id: `u_${item.id}`,
-                            role: "user" as const,
-                            content: item.question,
-                            sources: [],
-                        },
-                        {
-                            id: `a_${item.id}`,
-                            role: "assistant" as const,
-                            content: item.answer,
-                            sources: item.sources || [],
-                            question: item.question,
-                        },
-                    ]);
+                    .map((item) => ({
+                        id: `c_${item.id}`,
+                        title: item.question,
+                        messages: [
+                            {
+                                id: `u_${item.id}`,
+                                role: "user" as const,
+                                content: item.question,
+                                sources: [],
+                            },
+                            {
+                                id: `a_${item.id}`,
+                                role: "assistant" as const,
+                                content: item.answer,
+                                sources: item.sources || [],
+                                question: item.question,
+                            },
+                        ],
+                    }));
                 if (!restored.length) return;
-                setMessages((current) => (current.length ? current : restored));
+                setChatWindows(restored);
+                setActiveWindowId(restored[0].id);
+                setMessages(restored[0].messages);
             })
             .catch(() => undefined);
         return () => {
@@ -92,13 +112,23 @@ const Frame21123 = () => {
 
     const { open: openFilePicker, input: fileInput } = useFilePicker(handleFiles);
 
-    const handleSend = async () => {
-        const value = question.trim();
+    const handleSend = async (override?: string) => {
+        const value = (override ?? question).trim();
         if (!value) {
             notify("请先输入问题", "error");
             return;
         }
         if (streaming) return;
+        if (activeWindowId) {
+            const title = value.length > 28 ? `${value.slice(0, 28)}…` : value;
+            setChatWindows((current) =>
+                current.map((window) =>
+                    window.id === activeWindowId && window.title === "新对话"
+                        ? { ...window, title }
+                        : window,
+                ),
+            );
+        }
         const stamp = Date.now();
         const userId = `u_${stamp}`;
         const botId = `a_${stamp}`;
@@ -150,12 +180,58 @@ const Frame21123 = () => {
         );
     };
 
+    const switchChatWindow = (id: string) => {
+        if (id === activeWindowId) return;
+        setPendingDeleteWindow(null);
+        if (activeWindowId) {
+            const currentMessages = messages;
+            setChatWindows((current) =>
+                current.map((window) =>
+                    window.id === activeWindowId ? { ...window, messages: currentMessages } : window,
+                ),
+            );
+        }
+        const target = chatWindows.find((window) => window.id === id);
+        if (!target) return;
+        setMessages(target.messages);
+        setActiveWindowId(id);
+        setQuestion("");
+        if (inputRef.current) inputRef.current.textContent = "";
+    };
+
     const startNewConversation = () => {
+        setPendingDeleteWindow(null);
+        const id = `w_${Date.now()}`;
+        setChatWindows((current) => [
+            ...current.map((window) =>
+                window.id === activeWindowId ? { ...window, messages } : window,
+            ),
+            { id, title: "新对话", messages: [] },
+        ]);
+        setActiveWindowId(id);
         setQuestion("");
         setMessages([]);
         setStreaming(false);
         if (inputRef.current) inputRef.current.textContent = "";
-        notify("已新建对话");
+        notify("已新建对话窗口");
+    };
+
+    const deleteChatWindow = (id: string) => {
+        if (pendingDeleteWindow !== id) {
+            setPendingDeleteWindow(id);
+            return;
+        }
+        const remaining = chatWindows.filter((window) => window.id !== id);
+        setChatWindows(remaining);
+        if (id === activeWindowId) {
+            const next = remaining[0] ?? null;
+            setActiveWindowId(next?.id ?? null);
+            setMessages(next?.messages ?? []);
+            setQuestion("");
+            if (inputRef.current) inputRef.current.textContent = "";
+        }
+        setPendingDeleteWindow(null);
+        notify("对话窗口已删除");
     };
 
     return (
@@ -171,6 +247,23 @@ const Frame21123 = () => {
                 onClick={() => setSidebarOpen((open) => !open)}
             >
                 {sidebarOpen ? "‹" : "›"}
+            </button>
+            <button
+                type="button"
+                className="hc-chatlist-toggle"
+                style={{
+                    left:
+                        (sidebarOpen ? 264 : 0) +
+                        22 +
+                        (chatListOpen ? 238 : 0) -
+                        12,
+                }}
+                title={chatListOpen ? "收起对话列表" : "展开对话列表"}
+                aria-label={chatListOpen ? "收起对话列表" : "展开对话列表"}
+                aria-expanded={chatListOpen}
+                onClick={() => setChatListOpen((open) => !open)}
+            >
+                {chatListOpen ? "‹" : "›"}
             </button>
             <div
                 id="2_1123"
@@ -356,6 +449,7 @@ const Frame21123 = () => {
                                                 </p>
                                             </div>
                                         </div>
+                                        <ProjectSidebarList currentProjectId={projectId} />
                                         <div
                                             id="2_1171"
                                             className="stroke-wrapper-2_1171 pixso-relative-no-shrink pixso-flex"
@@ -826,7 +920,9 @@ const Frame21123 = () => {
                                             <div className="frame-content-2_1277 pixso-relative-flex">
                                                 <div
                                                     id="2_1278"
-                                                    className="stroke-wrapper-2_1278 pixso-relative-no-shrink pixso-flex"
+                                                    className={`stroke-wrapper-2_1278 pixso-relative-no-shrink pixso-flex${
+                                                        chatListOpen ? "" : " hc-chatlist-collapsed"
+                                                    }`}
                                                 >
                                                     <div className="Pixso-frame-2_1278 pixso-relative-no-shrink pixso-flex"></div>
                                                     <div className="stroke-2_1278"></div>
@@ -867,7 +963,16 @@ const Frame21123 = () => {
                                                                         data-placeholder="搜索历史问答"
                                                                         contentEditable
                                                                         suppressContentEditableWarning
-                                                                        onFocus={() => notify("可输入关键词搜索历史问答")}
+                                                                        onInput={(event) =>
+                                                                            setHistoryQuery(event.currentTarget.textContent ?? "")
+                                                                        }
+                                                                        onKeyDown={(event) => {
+                                                                            if (event.key === "Escape") {
+                                                                                event.currentTarget.textContent = "";
+                                                                                setHistoryQuery("");
+                                                                                event.currentTarget.blur();
+                                                                            }
+                                                                        }}
                                                                     >
                                                                         {""}
                                                                     </p>
@@ -1104,6 +1209,50 @@ const Frame21123 = () => {
                                                                         </div>
                                                                     </div>
                                                                 </div>
+                                                            </div>
+                                                            <div className="hc-chat-windows">
+                                                                <div className="hc-chat-windows__label">对话窗口</div>
+                                                                {chatWindows.length === 0 ? (
+                                                                    <div className="hc-chat-windows__empty">还没有对话，点击上方新建</div>
+                                                                ) : chatWindows.filter((window) =>
+                                                                    window.title.toLowerCase().includes(historyQuery.trim().toLowerCase())
+                                                                  ).length === 0 ? (
+                                                                    <div className="hc-chat-windows__empty">没有匹配的对话窗口</div>
+                                                                ) : (
+                                                                    chatWindows
+                                                                        .filter((window) =>
+                                                                            window.title
+                                                                                .toLowerCase()
+                                                                                .includes(historyQuery.trim().toLowerCase()),
+                                                                        )
+                                                                        .map((window) => (
+                                                                        <div
+                                                                            key={window.id}
+                                                                            className={`hc-chat-window${
+                                                                                window.id === activeWindowId ? " is-active" : ""
+                                                                            }`}
+                                                                        >
+                                                                            <button
+                                                                                type="button"
+                                                                                className="hc-chat-window__select"
+                                                                                onClick={() => switchChatWindow(window.id)}
+                                                                                title={window.title}
+                                                                            >
+                                                                                <span className="hc-chat-window__title">{window.title}</span>
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                className={`hc-chat-window__delete${
+                                                                                    pendingDeleteWindow === window.id ? " is-confirming" : ""
+                                                                                }`}
+                                                                                onClick={() => deleteChatWindow(window.id)}
+                                                                                title="删除对话"
+                                                                            >
+                                                                                {pendingDeleteWindow === window.id ? "确定" : "×"}
+                                                                            </button>
+                                                                        </div>
+                                                                    ))
+                                                                )}
                                                             </div>
                                                             <div
                                                                 id="2_1326"
@@ -2037,7 +2186,31 @@ const Frame21123 = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        {messages.length > 0 && (
+                                                        {messages.length === 0 ? (
+                                                            <div className="hc-chat-empty">
+                                                                <span className="hc-chat-empty__mark" aria-hidden="true">✦</span>
+                                                                <h3 className="hc-chat-empty__title">开始向知识库提问</h3>
+                                                                <p className="hc-chat-empty__desc">
+                                                                    回答会基于当前项目的已入库资料生成，并附上可回链的引用来源。点击下列问题可快速开始。
+                                                                </p>
+                                                                <div className="hc-chat-empty__suggestions">
+                                                                    {[
+                                                                        "当前知识库中有哪些核心结论？",
+                                                                        "总结最近上传资料的关键风险点",
+                                                                        "不同资料对同一问题的观点有什么差异？",
+                                                                    ].map((suggestion) => (
+                                                                        <button
+                                                                            key={suggestion}
+                                                                            type="button"
+                                                                            className="hc-chat-empty__chip"
+                                                                            onClick={() => void handleSend(suggestion)}
+                                                                        >
+                                                                            {suggestion}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
                                                             <div className="hc-chat" ref={streamRef}>
                                                                 {messages.map((message) =>
                                                                     message.role === "user" ? (
@@ -2158,12 +2331,9 @@ const Frame21123 = () => {
                                                                                 </div>
                                                                                 {source.section && (
                                                                                     <p className="hc-rag-source__section">
-                                                                                        {source.section}
+                                                                                        章节：{source.section}
                                                                                     </p>
                                                                                 )}
-                                                                                <p className="hc-rag-source__snippet">
-                                                                                    {source.snippet || source.content}
-                                                                                </p>
                                                                                 <div className="hc-rag-source__meta">
                                                                                     <span>
                                                                                         相关度{" "}
@@ -2181,18 +2351,14 @@ const Frame21123 = () => {
                                                                                             %
                                                                                         </span>
                                                                                     ) : null}
-                                                                                    {source.sourceUrl || source.documentId ? (
-                                                                                        <a
+                                                                                    {source.sourceUrl || source.documentId || source.content || source.snippet ? (
+                                                                                        <button
+                                                                                            type="button"
                                                                                             className="hc-rag-source__link"
-                                                                                            href={
-                                                                                                source.sourceUrl ||
-                                                                                                `/api/documents/${source.documentId}/file`
-                                                                                            }
-                                                                                            target="_blank"
-                                                                                            rel="noreferrer"
+                                                                                            onClick={() => setPreviewSource(source)}
                                                                                         >
                                                                                             查看原文
-                                                                                        </a>
+                                                                                        </button>
                                                                                     ) : null}
                                                                                 </div>
                                                                             </div>
@@ -2779,6 +2945,44 @@ const Frame21123 = () => {
                     </div>
                 </div>
             </div>
+            {previewSource ? (
+                <div
+                    className="hc-source-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={() => setPreviewSource(null)}
+                >
+                    <div
+                        className="hc-source-modal__panel"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <header className="hc-source-modal__head">
+                            <div className="hc-source-modal__title">
+                                {previewSource.title || previewSource.filename || "原文"}
+                                {previewSource.page ? ` · 第 ${previewSource.page} 页` : ""}
+                                {previewSource.section ? ` · ${previewSource.section}` : ""}
+                            </div>
+                            <button
+                                type="button"
+                                className="hc-source-modal__close"
+                                onClick={() => setPreviewSource(null)}
+                                aria-label="关闭"
+                            >
+                                ×
+                            </button>
+                        </header>
+                        <div className="hc-source-modal__body">
+                            <p className="hc-source-modal__text">
+                                <mark className="hc-source-modal__mark">
+                                    {previewSource.content ||
+                                        previewSource.snippet ||
+                                        "暂无可显示的原文片段"}
+                                </mark>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };

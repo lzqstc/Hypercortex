@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useFeedback } from "@/components/Feedback";
 import { navTo, pressable } from "@/utils/nav";
+import { getCurrentProject } from "@/utils/project";
+import ProjectSidebarList from "@/components/ProjectSidebarList";
 import WikiContentPanel from "@/components/WikiContentPanel";
 import "@/styles/Frame21608.css";
 const Frame21608 = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { notify } = useFeedback();
     const [researchMode, setResearchMode] = useState("深度 = 高");
+    const routeState = location.state as { projectId?: string } | null;
+    const projectId = routeState?.projectId ?? getCurrentProject().id;
 
     const cycleResearchMode = () => {
         const modes = ["深度 = 高", "深度 = 标准", "快速检索"];
@@ -17,7 +22,8 @@ const Frame21608 = () => {
     };
 
     return (
-        <div className="scroll-container">
+        <div className="scroll-container hc-research-page">
+            <div className="hc-research-page__scroll">
             <div
                 id="2_1608"
                 className="Pixso-frame-2_1608 pixso-relative-no-shrink pixso-flex"
@@ -200,6 +206,7 @@ const Frame21608 = () => {
                                                 </p>
                                             </div>
                                         </div>
+                                        <ProjectSidebarList currentProjectId={projectId} />
                                         <div
                                             id="2_1656"
                                             className="stroke-wrapper-2_1656 pixso-relative-no-shrink pixso-flex"
@@ -1894,7 +1901,8 @@ const Frame21608 = () => {
                     </div>
                 </div>
             </div>
-            <WikiContentPanel />
+            </div>
+            <WikiContentPanel projectId={projectId} />
         </div>
     );
 };

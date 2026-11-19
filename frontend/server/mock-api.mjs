@@ -175,6 +175,18 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { item: conversation })
     }
 
+    if (path === '/api/search' && req.method === 'POST') {
+      await readBody(req)
+      await sleep(Math.round(LATENCY / 2))
+      return send(res, 200, {
+        items: [
+          { id: randomUUID(), title: '演示资料片段 A', score: 0.93, snippet: '这是与检索词相关的示例片段，可回到原文核对。' },
+          { id: randomUUID(), title: '演示资料片段 B', score: 0.86, snippet: '第二命中片段，用于展示检索结果的排序与匹配度。' },
+        ],
+        lowConfidence: false,
+      })
+    }
+
     if (path === '/api/research' && req.method === 'GET') {
       await sleep(LATENCY)
       return send(res, 200, { items: state.researches })
@@ -201,6 +213,51 @@ const server = createServer(async (req, res) => {
         read: false,
       })
       return send(res, 202, { item: research })
+    }
+
+    const researchMatch = path.match(/^\/api\/research\/([^/]+)(?:\/(run|archive))?$/)
+    if (researchMatch) {
+      const [, researchId, action] = researchMatch
+      const research = state.researches.find((item) => item.id === researchId)
+      if (!research) return send(res, 404, { error: '研究任务不存在' })
+
+      if (!action && req.method === 'GET') {
+        return send(res, 200, { item: research })
+      }
+
+      if (action === 'run' && req.method === 'POST') {
+        const body = await readBody(req)
+        if (body.topic) research.topic = String(body.topic).trim()
+        await sleep(LATENCY + 400)
+        research.status = 'completed'
+        research.steps = ['拆解研究主题', '检索并聚类证据', '交叉验证矛盾点', '生成结构化结论', '输出 wiki 卡片']
+        research.projectId = research.projectId || 'default'
+        research.result = {
+          id: randomUUID(),
+          researchId: research.id,
+          projectId: research.projectId,
+          title: research.topic,
+          content: `基于当前知识库资料，对「${research.topic}」的初步结论：建议优先核对高相关片段，并结合原文页码形成可追溯的判断。`,
+          sources: [{ id: randomUUID(), title: '演示资料片段 A', score: 0.91 }],
+          confidence: 0.88,
+          archived: false,
+          createdAt: new Date().toISOString(),
+        }
+        return send(res, 200, { item: research })
+      }
+
+      if (action === 'archive' && req.method === 'POST') {
+        if (!research.result) return send(res, 400, { error: '请先生成研究结论' })
+        research.result.archived = true
+        return send(res, 200, { item: research.result })
+      }
+    }
+
+    if (path === '/api/cards' && req.method === 'GET') {
+      const items = state.researches
+        .map((item) => item.result)
+        .filter((item) => Boolean(item?.archived))
+      return send(res, 200, { items })
     }
 
     if (path === '/api/settings' && req.method === 'PATCH') {

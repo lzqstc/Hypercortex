@@ -1,18 +1,19 @@
 /* 深度思考与研究页 · 我的内容（LLM Wiki 摘要卡片 + 详情） */
 
 .hc-wiki {
-  position: fixed;
+  position: absolute !important;
   left: 288px;
   right: 40px;
-  top: 176px;
-  z-index: 200;
+  top: 53px;
+  bottom: 20px;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 14px;
+  border: none;
+  border-radius: 0 12px 0 0;
   background: #ffffff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  box-shadow: none;
   font-size: 12px;
   color: #1f2937;
 }
@@ -555,7 +556,9 @@
 }
 
 @media (max-width: 1100px) {
-  .hc-wiki {
-    left: 16px;
+  /* 研究页侧栏仍占位，面板不能贴到视口左边，否则会遮住项目列表 */
+  html body .hc-wiki {
+    left: 288px;
+    right: 24px;
   }
 }
