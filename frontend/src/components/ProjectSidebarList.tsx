@@ -51,8 +51,10 @@ const ProjectSidebarList = ({ currentProjectId }: { currentProjectId?: string })
         setPendingDelete(null)
         setCurrentProject({ id: project.id, name: project.name })
         notify(`已切换到项目：${project.name}`)
-        navigate(location.pathname, {
+        // 点击项目后直接进入该项目的资料上传页
+        navigate('/frame2688', {
             state: { projectId: project.id, projectName: project.name },
+            replace: location.pathname === '/frame2688',
         })
     }
 

@@ -56,6 +56,40 @@
   display: none !important;
 }
 
+/* 新建项目页：移除顶部“工作区 / 新建项目”面包屑整行，内容自然上移 */
+[id="2_413"] {
+  display: none !important;
+}
+
+/* 新建项目页：移除搜索 / 通知 / 帮助工具栏，让表单继续上移 */
+[id="2_419"] {
+  display: none !important;
+}
+
+/* 新建项目页：主内容区吃掉侧栏之外的剩余宽度，高度自适应（不能再用 width:100%，否则会超出容器 264px） */
+html body [id="2_412"] {
+  height: auto !important;
+  width: auto !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+html body .frame-content-2_412 {
+  gap: 10px !important;
+  padding: 12px 24px 12px 24px !important;
+}
+
+/* 新建项目页：右侧栏卡片已全部隐藏，去掉这块空占位，让左侧表单卡片向右铺满 */
+html body [id="2_580"] {
+  display: none !important;
+}
+
+/* 表单区说明文字的生成样式写死了 620px，会被卡片裁掉 */
+html body [id="2_446"] {
+  width: 100% !important;
+}
+
 /* 真实对话流取代设计稿中的静态示例问答卡片（固定高度会挤掉对话区高度） */
 [id="2_1372"] {
   display: none !important;
@@ -64,6 +98,11 @@
 /* 深度思考与研究：移除设计稿顶部标题行与“产品知识中枢”空白，项目设置已移至侧栏底部 */
 .hc-research-page [id="2_1702"],
 .hc-research-page [id="2_1766"] {
+  display: none !important;
+}
+
+/* 深度思考与研究：真实工作台取代设计稿内的静态研究卡片；顶部标签栏 #2_1724 保留，与其他页面保持一致 */
+.hc-research-page [id="2_1761"] {
   display: none !important;
 }
 
@@ -80,5 +119,25 @@
 /* 知识上传窗口：只隐藏 demo 标题行与项目设置，保留 #2_781 作为主内容区根容器的布局 */
 [id="2_782"],
 [id="2_796"] {
+  display: none !important;
+}
+
+/* 新建项目页：侧栏铺满整页高度（生成样式只给了 228px，白色底与分隔线会中断） */
+html body .stroke-wrapper-2_320 {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* 新建项目页：不整体 zoom，与其他页面保持同样的 1:1 设计比例；该页禁止滚动 */
+html body .scroll-container.hc-new-project-page {
+  overflow: hidden !important;
+}
+
+/* 标题介绍块与表单内容重复，去掉后整张表单可以在一屏内完整显示 */
+html body [id="2_435"] {
+  display: none !important;
+}
+/* 新建项目页：整块“创建后自动完成”不再展示 */
+html body [id="2_654"] {
   display: none !important;
 }

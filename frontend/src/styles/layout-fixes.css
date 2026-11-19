@@ -822,3 +822,26 @@ html body [id="2_854"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* 12. 所有页面隐藏滚动条外观（滚轮 / 触控板滚动仍然可用） */
+html body .scroll-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html body .scroll-container::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* 13. 页面根容器按视口高度铺满：内容不足时不再产生多余的滚动空白 */
+html body .scroll-container > [id^="2_"] {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+html body .scroll-container > [id^="2_"] > [class*="frame-content-"] {
+  height: 100% !important;
+  min-height: 0 !important;
+}

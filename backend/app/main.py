@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router
-from .api.wiki import router as wiki_router
 from .config import get_settings
 from .db import Database
 from .services.bm25 import BM25IndexManager
@@ -23,6 +22,10 @@ from .services.rag import RAGService
 from .services.reranker import Reranker
 from .services.retriever import Retriever
 from .services.vector_store import create_vector_store
+from .wiki.api import router as wiki_router
+from .wiki.chat import ChatService
+from .wiki.ingest import IngestService
+from .wiki.research import DeepResearchService
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,15 @@ async def lifespan(app: FastAPI):
     rag = RAGService(settings, db, retriever, llm)
     ingestion = IngestionService(settings, db, embeddings, vector_store, bm25)
 
+    wiki_ingest = IngestService(settings, embeddings)
+    wiki_research = DeepResearchService(settings)
+    wiki_chat = ChatService(wiki_ingest.llm)
+    # 启动即注册所有项目工作区，保证重启后遗留的编译任务会被继续消费
+    from .wiki.store import workspace_for
+
+    for project in db.list_projects():
+        wiki_ingest.register(workspace_for(settings, project["id"], project["name"]))
+
     app.state.settings = settings
     app.state.db = db
     app.state.embeddings = embeddings
@@ -67,18 +79,26 @@ async def lifespan(app: FastAPI):
     app.state.llm = llm
     app.state.rag = rag
     app.state.ingestion = ingestion
+    app.state.wiki_ingest = wiki_ingest
+    app.state.wiki_research = wiki_research
+    app.state.wiki_chat = wiki_chat
 
     await ingestion.start()
+    if settings.wiki_enabled:
+        await wiki_ingest.start()
     logger.info(
-        "HyperCortex RAG API ready: data=%s vector=%s embedding=%s llm=%s",
+        "HyperCortex RAG API ready: data=%s vector=%s embedding=%s llm=%s wiki=%s",
         settings.data_path,
         vector_store.health().get("type"),
         settings.embedding_provider,
         settings.llm_provider,
+        "on" if settings.wiki_enabled else "off",
     )
     try:
         yield
     finally:
+        if settings.wiki_enabled:
+            await wiki_ingest.stop()
         await ingestion.stop()
         logger.info("HyperCortex RAG API stopped")
 

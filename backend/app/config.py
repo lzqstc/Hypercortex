@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     url_timeout_seconds: int = 20
     allow_private_urls: bool = False
 
+    # Wiki / 深度研究
+    wiki_enabled: bool = True
+    # none | auto | duckduckgo | tavily | serpapi | searxng
+    search_provider: str = "auto"
+    tavily_api_key: str = ""
+    serpapi_api_key: str = ""
+    searxng_url: str = "http://127.0.0.1:8080"
+
     @property
     def data_path(self) -> Path:
         path = self.data_dir

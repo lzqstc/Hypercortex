@@ -4,7 +4,7 @@ import { useFeedback } from "@/components/Feedback";
 import { navTo, pressable } from "@/utils/nav";
 import { getCurrentProject } from "@/utils/project";
 import ProjectSidebarList from "@/components/ProjectSidebarList";
-import WikiContentPanel from "@/components/WikiContentPanel";
+import KnowledgeStudio from "@/components/studio/KnowledgeStudio";
 import "@/styles/Frame21608.css";
 const Frame21608 = () => {
     const navigate = useNavigate();
@@ -1901,8 +1901,8 @@ const Frame21608 = () => {
                     </div>
                 </div>
             </div>
+            <KnowledgeStudio projectId={projectId} />
             </div>
-            <WikiContentPanel projectId={projectId} />
         </div>
     );
 };

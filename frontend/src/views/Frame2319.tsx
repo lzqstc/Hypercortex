@@ -92,7 +92,7 @@ const Frame2319 = () => {
     };
 
     return (
-        <div className="scroll-container">
+        <div className="scroll-container hc-new-project-page">
             {searchOpen ? <QuickSearch onClose={() => setSearchOpen(false)} /> : null}
             <div
                 id="2_319"
